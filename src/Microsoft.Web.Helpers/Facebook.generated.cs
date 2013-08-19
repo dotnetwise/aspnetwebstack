@@ -288,7 +288,7 @@ namespace Microsoft.Web.Helpers
         return userName;
     }
 
-    private static string GetUserName(int userId) {
+    private static string GetUserName(Guid userId) {
         var userName = "";
 
         using (var db = Database.Open(MembershipDBName)) {

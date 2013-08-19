@@ -446,7 +446,7 @@ namespace Microsoft.Web.WebPages.OAuth
         /// <returns>
         ///   <c>true</c> if there is a local account with the specified user id]; otherwise, <c>false</c>.
         /// </returns>
-        public static bool HasLocalAccount(int userId)
+        public static bool HasLocalAccount(Guid userId)
         {
             ExtendedMembershipProvider provider = VerifyProvider();
             Debug.Assert(provider != null); // VerifyProvider checks this

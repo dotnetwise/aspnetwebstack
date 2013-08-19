@@ -26,7 +26,7 @@ namespace WebMatrix.WebData
         /// </value>
         public static bool Initialized { get; private set; }
 
-        public static int CurrentUserId
+        public static Guid CurrentUserId
         {
             get { return GetUserId(CurrentUserName); }
         }
@@ -38,7 +38,7 @@ namespace WebMatrix.WebData
 
         public static bool HasUserId
         {
-            get { return CurrentUserId != -1; }
+            get { return CurrentUserId != Guid.Empty; }
         }
 
         public static bool IsAuthenticated
@@ -285,20 +285,20 @@ namespace WebMatrix.WebData
             return Membership.GetUser(userName) != null;
         }
 
-        public static int GetUserId(string userName)
+        public static Guid GetUserId(string userName)
         {
             VerifyProvider();
             MembershipUser user = Membership.GetUser(userName);
             if (user == null)
             {
-                return -1;
+                return Guid.Empty;
             }
 
             // REVIEW: This cast is breaking the abstraction for the membershipprovider, we basically assume that userids are ints
-            return (int)user.ProviderUserKey;
+            return (Guid)user.ProviderUserKey;
         }
 
-        public static int GetUserIdFromPasswordResetToken(string token)
+        public static Guid GetUserIdFromPasswordResetToken(string token)
         {
             ExtendedMembershipProvider provider = VerifyProvider();
             Debug.Assert(provider != null); // VerifyProvider checks this
@@ -321,7 +321,7 @@ namespace WebMatrix.WebData
         }
 
         // Make sure the logged on user is same as the one specified by the id
-        private static bool IsUserLoggedOn(int userId)
+        private static bool IsUserLoggedOn(Guid userId)
         {
             VerifyProvider();
             return CurrentUserId == userId;
@@ -339,7 +339,7 @@ namespace WebMatrix.WebData
         }
 
         // Make sure the user was authenticated
-        public static void RequireUser(int userId)
+        public static void RequireUser(Guid userId)
         {
             VerifyProvider();
             if (!IsUserLoggedOn(userId))

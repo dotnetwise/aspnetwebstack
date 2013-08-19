@@ -149,7 +149,7 @@ namespace WebMatrix.WebData
 
         internal static string MembershipTableName
         {
-            get { return "webpages_Membership"; }
+            get { return "aspnet_Membership"; }
         }
 
         internal static string OAuthMembershipTableName
@@ -157,7 +157,7 @@ namespace WebMatrix.WebData
             get { return "webpages_OAuthMembership"; }
         }
 
-        internal static string OAuthTokenTableName 
+        internal static string OAuthTokenTableName
         {
             get { return "webpages_OAuthToken"; }
         }
@@ -255,25 +255,25 @@ namespace WebMatrix.WebData
             {
                 if (!CheckTableExists(db, UserTableName))
                 {
-                    db.Execute(@"CREATE TABLE " + SafeUserTableName + "(" + SafeUserIdColumn + " int NOT NULL PRIMARY KEY IDENTITY, " + SafeUserNameColumn + " nvarchar(56) NOT NULL UNIQUE)");
+                    db.Execute(@"CREATE TABLE " + SafeUserTableName + "(" + SafeUserIdColumn + " uniqueidentifier NOT NULL PRIMARY KEY IDENTITY, " + SafeUserNameColumn + " nvarchar(56) NOT NULL UNIQUE)");
                 }
 
                 if (!CheckTableExists(db, OAuthMembershipTableName))
                 {
-                    db.Execute(@"CREATE TABLE " + OAuthMembershipTableName + " (Provider nvarchar(30) NOT NULL, ProviderUserId nvarchar(100) NOT NULL, UserId int NOT NULL, PRIMARY KEY (Provider, ProviderUserId))");
+                    db.Execute(@"CREATE TABLE " + OAuthMembershipTableName + " (Provider nvarchar(30) NOT NULL, ProviderUserId nvarchar(100) NOT NULL, UserId uniqueidentifier NOT NULL, PRIMARY KEY (Provider, ProviderUserId))");
                 }
 
                 if (!CheckTableExists(db, MembershipTableName))
                 {
                     db.Execute(@"CREATE TABLE " + MembershipTableName + @" (
-                        UserId                                  int                 NOT NULL PRIMARY KEY,
+                        UserId                                  uniqueidentifier                 NOT NULL PRIMARY KEY,
                         CreateDate                              datetime            ,
                         ConfirmationToken                       nvarchar(128)       ,
                         IsConfirmed                             bit                 DEFAULT 0,
                         LastPasswordFailureDate                 datetime            ,
-                        PasswordFailuresSinceLastSuccess         int                 NOT NULL DEFAULT 0,
+                        FailedPasswordAttemptCount         int                 NOT NULL DEFAULT 0,
                         Password                                nvarchar(128)       NOT NULL,
-                        PasswordChangedDate                     datetime            ,
+                        LastPasswordChangedDate                     datetime            ,
                         PasswordSalt                            nvarchar(128)       NOT NULL,
                         PasswordVerificationToken               nvarchar(128)       ,
                         PasswordVerificationTokenExpirationDate datetime)");
@@ -292,7 +292,7 @@ namespace WebMatrix.WebData
         }
 
         // Not an override ==> Simple Membership MUST be enabled to use this method
-        public int GetUserId(string userName)
+        public Guid GetUserId(string userName)
         {
             VerifyInitialized();
             using (var db = ConnectToDatabase())
@@ -301,20 +301,20 @@ namespace WebMatrix.WebData
             }
         }
 
-        internal static int GetUserId(IDatabase db, string userTableName, string userNameColumn, string userIdColumn, string userName)
+        internal static Guid GetUserId(IDatabase db, string userTableName, string userNameColumn, string userIdColumn, string userName)
         {
             // Casing is normalized in Sql to allow the database to normalize username according to its collation. The common issue 
             // that can occur here is the 'Turkish i problem', where the uppercase of 'i' is not 'I' in Turkish.
             var result = db.QueryValue(@"SELECT " + userIdColumn + " FROM " + userTableName + " WHERE (UPPER(" + userNameColumn + ") = UPPER(@0))", userName);
             if (result != null)
             {
-                return (int)result;
+                return (Guid)result;
             }
-            return -1;
+            return Guid.Empty;
         }
 
         // Inherited from ExtendedMembershipProvider ==> Simple Membership MUST be enabled to use this method
-        public override int GetUserIdFromPasswordResetToken(string token)
+        public override Guid GetUserIdFromPasswordResetToken(string token)
         {
             VerifyInitialized();
             using (var db = ConnectToDatabase())
@@ -322,9 +322,9 @@ namespace WebMatrix.WebData
                 var result = db.QuerySingle(@"SELECT UserId FROM " + MembershipTableName + " WHERE (PasswordVerificationToken = @0)", token);
                 if (result != null && result[0] != null)
                 {
-                    return (int)result[0];
+                    return (Guid)result[0];
                 }
-                return -1;
+                return Guid.Empty;
             }
         }
 
@@ -358,7 +358,7 @@ namespace WebMatrix.WebData
                 {
                     return false;
                 }
-                int userId = row[0];
+                Guid userId = row[0];
                 string expectedToken = row[1];
 
                 if (String.Equals(accountConfirmationToken, expectedToken, StringComparison.Ordinal))
@@ -394,7 +394,7 @@ namespace WebMatrix.WebData
                     return false;
                 }
                 var row = rows.First();
-                int userId = row[0];
+                Guid userId = row[0];
                 int affectedRows = db.Execute("UPDATE " + MembershipTableName + " SET [IsConfirmed] = 1 WHERE [UserId] = @0", userId);
                 return affectedRows > 0;
             }
@@ -429,8 +429,8 @@ namespace WebMatrix.WebData
             using (var db = ConnectToDatabase())
             {
                 // Step 1: Check if the user exists in the Users table
-                int uid = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-                if (uid == -1)
+                Guid uid = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
+                if (uid == Guid.Empty)
                 {
                     // User not found
                     throw new MembershipCreateUserException(MembershipCreateStatus.ProviderError);
@@ -453,7 +453,7 @@ namespace WebMatrix.WebData
                 }
                 int defaultNumPasswordFailures = 0;
 
-                int insert = db.Execute(@"INSERT INTO [" + MembershipTableName + "] (UserId, [Password], PasswordSalt, IsConfirmed, ConfirmationToken, CreateDate, PasswordChangedDate, PasswordFailuresSinceLastSuccess)"
+                int insert = db.Execute(@"INSERT INTO [" + MembershipTableName + "] (UserId, [Password], PasswordSalt, IsConfirmed, ConfirmationToken, CreateDate, LastPasswordChangedDate, FailedPasswordAttemptCount)"
                                         + " VALUES (@0, @1, @2, @3, @4, @5, @5, @6)", uid, hashedPassword, String.Empty /* salt column is unused */, !requireConfirmationToken, dbtoken, DateTime.UtcNow, defaultNumPasswordFailures);
                 if (insert != 1)
                 {
@@ -476,8 +476,8 @@ namespace WebMatrix.WebData
         private void CreateUserRow(IDatabase db, string userName, IDictionary<string, object> values)
         {
             // Make sure user doesn't exist
-            int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-            if (userId != -1)
+            Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
+            if (userId != Guid.Empty)
             {
                 throw new MembershipCreateUserException(MembershipCreateStatus.DuplicateUserName);
             }
@@ -538,7 +538,7 @@ namespace WebMatrix.WebData
             throw new NotSupportedException();
         }
 
-        private static bool SetPassword(IDatabase db, int userId, string newPassword)
+        private static bool SetPassword(IDatabase db, Guid userId, string newPassword)
         {
             string hashedPassword = Crypto.HashPassword(newPassword);
             if (hashedPassword.Length > 128)
@@ -547,7 +547,7 @@ namespace WebMatrix.WebData
             }
 
             // Update new password
-            int result = db.Execute(@"UPDATE " + MembershipTableName + " SET Password=@0, PasswordSalt=@1, PasswordChangedDate=@2 WHERE UserId = @3", hashedPassword, String.Empty /* salt column is unused */, DateTime.UtcNow, userId);
+            int result = db.Execute(@"UPDATE " + MembershipTableName + " SET Password=@0, PasswordSalt=@1, LastPasswordChangedDate=@2 WHERE UserId = @3", hashedPassword, String.Empty /* salt column is unused */, DateTime.UtcNow, userId);
             return result > 0;
         }
 
@@ -575,8 +575,8 @@ namespace WebMatrix.WebData
 
             using (var db = ConnectToDatabase())
             {
-                int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
-                if (userId == -1)
+                Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
+                if (userId == Guid.Empty)
                 {
                     return false; // User not found
                 }
@@ -622,8 +622,8 @@ namespace WebMatrix.WebData
             // Due to a bug in v1, GetUser allows passing null / empty values.
             using (var db = ConnectToDatabase())
             {
-                int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
-                if (userId == -1)
+                Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
+                if (userId == Guid.Empty)
                 {
                     return null; // User not found
                 }
@@ -649,8 +649,8 @@ namespace WebMatrix.WebData
 
             using (var db = ConnectToDatabase())
             {
-                int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-                if (userId == -1)
+                Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
+                if (userId == Guid.Empty)
                 {
                     return false; // User not found
                 }
@@ -670,8 +670,8 @@ namespace WebMatrix.WebData
 
             using (var db = ConnectToDatabase())
             {
-                int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
-                if (userId == -1)
+                Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
+                if (userId == Guid.Empty)
                 {
                     return false; // User not found
                 }
@@ -731,9 +731,9 @@ namespace WebMatrix.WebData
             throw new NotSupportedException();
         }
 
-        private static int GetPasswordFailuresSinceLastSuccess(IDatabase db, int userId)
+        private static int GetPasswordFailuresSinceLastSuccess(IDatabase db, Guid userId)
         {
-            var failure = db.QueryValue(@"SELECT PasswordFailuresSinceLastSuccess FROM " + MembershipTableName + " WHERE (UserId = @0)", userId);
+            var failure = db.QueryValue(@"SELECT FailedPasswordAttemptCount FROM " + MembershipTableName + " WHERE (UserId = @0)", userId);
             if (failure != null)
             {
                 return failure;
@@ -746,8 +746,8 @@ namespace WebMatrix.WebData
         {
             using (var db = ConnectToDatabase())
             {
-                int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-                if (userId == -1)
+                Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
+                if (userId == Guid.Empty)
                 {
                     throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, WebDataResources.Security_NoUserFound, userName));
                 }
@@ -761,8 +761,8 @@ namespace WebMatrix.WebData
         {
             using (var db = ConnectToDatabase())
             {
-                int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-                if (userId == -1)
+                Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
+                if (userId == Guid.Empty)
                 {
                     throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, WebDataResources.Security_NoUserFound, userName));
                 }
@@ -781,13 +781,13 @@ namespace WebMatrix.WebData
         {
             using (var db = ConnectToDatabase())
             {
-                int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-                if (userId == -1)
+                Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
+                if (userId == Guid.Empty)
                 {
                     throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, WebDataResources.Security_NoUserFound, userName));
                 }
 
-                var pwdChangeDate = db.QuerySingle(@"SELECT PasswordChangedDate FROM " + MembershipTableName + " WHERE (UserId = @0)", userId);
+                var pwdChangeDate = db.QuerySingle(@"SELECT LastPasswordChangedDate FROM " + MembershipTableName + " WHERE (UserId = @0)", userId);
                 if (pwdChangeDate != null && pwdChangeDate[0] != null)
                 {
                     return (DateTime)pwdChangeDate[0];
@@ -801,8 +801,8 @@ namespace WebMatrix.WebData
         {
             using (var db = ConnectToDatabase())
             {
-                int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-                if (userId == -1)
+                Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
+                if (userId == Guid.Empty)
                 {
                     throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, WebDataResources.Security_NoUserFound, userName));
                 }
@@ -816,31 +816,31 @@ namespace WebMatrix.WebData
             }
         }
 
-        private bool CheckPassword(IDatabase db, int userId, string password)
+        private bool CheckPassword(IDatabase db, Guid userId, string password)
         {
             string hashedPassword = GetHashedPassword(db, userId);
             bool verificationSucceeded = (hashedPassword != null && Crypto.VerifyHashedPassword(hashedPassword, password));
             if (verificationSucceeded)
             {
                 // Reset password failure count on successful credential check
-                db.Execute(@"UPDATE " + MembershipTableName + " SET PasswordFailuresSinceLastSuccess = 0 WHERE (UserId = @0)", userId);
+                db.Execute(@"UPDATE " + MembershipTableName + " SET FailedPasswordAttemptCount = 0 WHERE (UserId = @0)", userId);
             }
             else
             {
                 int failures = GetPasswordFailuresSinceLastSuccess(db, userId);
                 if (failures != -1)
                 {
-                    db.Execute(@"UPDATE " + MembershipTableName + " SET PasswordFailuresSinceLastSuccess = @1, LastPasswordFailureDate = @2 WHERE (UserId = @0)", userId, failures + 1, DateTime.UtcNow);
+                    db.Execute(@"UPDATE " + MembershipTableName + " SET FailedPasswordAttemptCount = @1, LastPasswordFailureDate = @2 WHERE (UserId = @0)", userId, failures + 1, DateTime.UtcNow);
                 }
             }
             return verificationSucceeded;
         }
 
-        private string GetHashedPassword(IDatabase db, int userId)
+        private string GetHashedPassword(IDatabase db, Guid userId)
         {
             var pwdQuery = db.Query(@"SELECT m.[Password] " +
                                     @"FROM " + MembershipTableName + " m, " + SafeUserTableName + " u " +
-                                    @"WHERE m.UserId = " + userId + " AND m.UserId = u." + SafeUserIdColumn).ToList();
+                                    @"WHERE m.UserId = @0 AND m.UserId = u." + SafeUserIdColumn, userId).ToList();
             // REVIEW: Should get exactly one match, should we throw if we get > 1?
             if (pwdQuery.Count != 1)
             {
@@ -850,10 +850,10 @@ namespace WebMatrix.WebData
         }
 
         // Ensures the user exists in the accounts table
-        private int VerifyUserNameHasConfirmedAccount(IDatabase db, string username, bool throwException)
+        private Guid VerifyUserNameHasConfirmedAccount(IDatabase db, string username, bool throwException)
         {
-            int userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
-            if (userId == -1)
+            Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
+            if (userId == Guid.Empty)
             {
                 if (throwException)
                 {
@@ -861,7 +861,7 @@ namespace WebMatrix.WebData
                 }
                 else
                 {
-                    return -1;
+                    return Guid.Empty;
                 }
             }
 
@@ -874,7 +874,7 @@ namespace WebMatrix.WebData
                 }
                 else
                 {
-                    return -1;
+                    return Guid.Empty;
                 }
             }
             return userId;
@@ -905,7 +905,7 @@ namespace WebMatrix.WebData
             }
             using (var db = ConnectToDatabase())
             {
-                int userId = VerifyUserNameHasConfirmedAccount(db, userName, throwException: true);
+                Guid userId = VerifyUserNameHasConfirmedAccount(db, userName, throwException: true);
 
                 string token = db.QueryValue(@"SELECT PasswordVerificationToken FROM " + MembershipTableName + " WHERE (UserId = @0 AND PasswordVerificationTokenExpirationDate > @1)", userId, DateTime.UtcNow);
                 if (token == null)
@@ -937,8 +937,8 @@ namespace WebMatrix.WebData
 
             using (var db = ConnectToDatabase())
             {
-                int userId = VerifyUserNameHasConfirmedAccount(db, userName, throwException: false);
-                return (userId != -1);
+                Guid userId = VerifyUserNameHasConfirmedAccount(db, userName, throwException: false);
+                return (userId != Guid.Empty);
             }
         }
 
@@ -952,7 +952,7 @@ namespace WebMatrix.WebData
             }
             using (var db = ConnectToDatabase())
             {
-                int? userId = db.QueryValue(@"SELECT UserId FROM " + MembershipTableName + " WHERE (PasswordVerificationToken = @0 AND PasswordVerificationTokenExpirationDate > @1)", token, DateTime.UtcNow);
+                Guid? userId = db.QueryValue(@"SELECT UserId FROM " + MembershipTableName + " WHERE (PasswordVerificationToken = @0 AND PasswordVerificationTokenExpirationDate > @1)", token, DateTime.UtcNow);
                 if (userId != null)
                 {
                     bool success = SetPassword(db, userId.Value, newPassword);
@@ -1031,8 +1031,8 @@ namespace WebMatrix.WebData
 
             using (var db = ConnectToDatabase())
             {
-                int userId = VerifyUserNameHasConfirmedAccount(db, username, throwException: false);
-                if (userId == -1)
+                Guid userId = VerifyUserNameHasConfirmedAccount(db, username, throwException: false);
+                if (userId == Guid.Empty)
                 {
                     return false;
                 }
@@ -1043,7 +1043,7 @@ namespace WebMatrix.WebData
             }
         }
 
-        public override string GetUserNameFromId(int userId)
+        public override string GetUserNameFromId(Guid userId)
         {
             VerifyInitialized();
 
@@ -1063,8 +1063,8 @@ namespace WebMatrix.WebData
                 throw new MembershipCreateUserException(MembershipCreateStatus.ProviderError);
             }
 
-            int userId = GetUserId(userName);
-            if (userId == -1)
+            Guid userId = GetUserId(userName);
+            if (userId == Guid.Empty)
             {
                 throw new MembershipCreateUserException(MembershipCreateStatus.InvalidUserName);
             }
@@ -1072,7 +1072,7 @@ namespace WebMatrix.WebData
             var oldUserId = GetUserIdFromOAuth(provider, providerUserId);
             using (var db = ConnectToDatabase())
             {
-                if (oldUserId == -1)
+                if (oldUserId == Guid.Empty)
                 {
                     // account doesn't exist. create a new one.
                     int insert = db.Execute(@"INSERT INTO [" + OAuthMembershipTableName + "] (Provider, ProviderUserId, UserId) VALUES (@0, @1, @2)", provider, providerUserId, userId);
@@ -1108,7 +1108,7 @@ namespace WebMatrix.WebData
             }
         }
 
-        public override int GetUserIdFromOAuth(string provider, string providerUserId)
+        public override Guid GetUserIdFromOAuth(string provider, string providerUserId)
         {
             VerifyInitialized();
 
@@ -1117,10 +1117,10 @@ namespace WebMatrix.WebData
                 dynamic id = db.QueryValue(@"SELECT UserId FROM [" + OAuthMembershipTableName + "] WHERE UPPER(Provider)=@0 AND UPPER(ProviderUserId)=@1", provider.ToUpperInvariant(), providerUserId.ToUpperInvariant());
                 if (id != null)
                 {
-                    return (int)id;
+                    return (Guid)id;
                 }
 
-                return -1;
+                return Guid.Empty;
             }
         }
 
@@ -1219,8 +1219,8 @@ namespace WebMatrix.WebData
         {
             VerifyInitialized();
 
-            int userId = GetUserId(userName);
-            if (userId != -1)
+            Guid userId = GetUserId(userName);
+            if (userId != Guid.Empty)
             {
                 using (var db = ConnectToDatabase())
                 {
@@ -1247,7 +1247,7 @@ namespace WebMatrix.WebData
         /// <returns>
         ///   <c>true</c> if there is a local account with the specified user id]; otherwise, <c>false</c>.
         /// </returns>
-        public override bool HasLocalAccount(int userId)
+        public override bool HasLocalAccount(Guid userId)
         {
             VerifyInitialized();
 
@@ -1255,7 +1255,7 @@ namespace WebMatrix.WebData
             {
                 dynamic id = db.QueryValue(@"SELECT UserId FROM [" + MembershipTableName + "] WHERE UserId=@0", userId);
                 return id != null;
-            }           
+            }
         }
     }
 }

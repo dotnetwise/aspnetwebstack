@@ -37,7 +37,7 @@ namespace WebMatrix.WebData
         /// <param name="provider">The provider.</param>
         /// <param name="providerUserId">The provider user id.</param>
         /// <returns></returns>
-        public virtual int GetUserIdFromOAuth(string provider, string providerUserId)
+        public virtual Guid GetUserIdFromOAuth(string provider, string providerUserId)
         {
             throw new NotImplementedException();
         }
@@ -47,7 +47,7 @@ namespace WebMatrix.WebData
         /// </summary>
         /// <param name="userId">The user id.</param>
         /// <returns></returns>
-        public virtual string GetUserNameFromId(int userId)
+        public virtual string GetUserNameFromId(Guid userId)
         {
             throw new NotImplementedException();
         }
@@ -59,7 +59,7 @@ namespace WebMatrix.WebData
         /// <returns>
         ///   <c>true</c> if there is a local account with the specified user id]; otherwise, <c>false</c>.
         /// </returns>
-        public virtual bool HasLocalAccount(int userId)
+        public virtual bool HasLocalAccount(Guid userId)
         {
             throw new NotImplementedException();
         }
@@ -144,7 +144,7 @@ namespace WebMatrix.WebData
         }
 
         public abstract string GeneratePasswordResetToken(string userName, int tokenExpirationInMinutesFromNow);
-        public abstract int GetUserIdFromPasswordResetToken(string token);
+        public abstract Guid GetUserIdFromPasswordResetToken(string token);
         public abstract bool IsConfirmed(string userName);
         public abstract bool ResetPasswordWithToken(string token, string newPassword);
         public abstract int GetPasswordFailuresSinceLastSuccess(string userName);

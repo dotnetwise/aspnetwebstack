@@ -24,8 +24,8 @@ namespace Microsoft.Web.WebPages.OAuth
         {
             ExtendedMembershipProvider provider = VerifyProvider();
 
-            int userId = provider.GetUserIdFromOAuth(openAuthProvider, openAuthId);
-            if (userId == -1) 
+            Guid userId = provider.GetUserIdFromOAuth(openAuthProvider, openAuthId);
+            if (userId == Guid.Empty) 
             {
                 return null;
             }

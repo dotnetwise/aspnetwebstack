@@ -56,12 +56,12 @@ namespace WebMatrix.WebData
 
         internal static string RoleTableName
         {
-            get { return "webpages_Roles"; }
+            get { return "aspnet_Roles"; }
         }
 
         internal static string UsersInRoleTableName
         {
-            get { return "webpages_UsersInRoles"; }
+            get { return "aspnet_UsersInRoles"; }
         }
 
         // represents the User table for the app
@@ -137,13 +137,13 @@ namespace WebMatrix.WebData
             }
         }
 
-        private List<int> GetUserIdsFromNames(IDatabase db, string[] usernames)
+        private List<Guid> GetUserIdsFromNames(IDatabase db, string[] usernames)
         {
-            List<int> userIds = new List<int>(usernames.Length);
+            var userIds = new List<Guid>(usernames.Length);
             foreach (string username in usernames)
             {
-                int id = SimpleMembershipProvider.GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
-                if (id == -1)
+                var id = SimpleMembershipProvider.GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
+                if (id == Guid.Empty)
                 {
                     throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, WebDataResources.Security_NoUserFound, username));
                 }
@@ -152,13 +152,13 @@ namespace WebMatrix.WebData
             return userIds;
         }
 
-        private static List<int> GetRoleIdsFromNames(IDatabase db, string[] roleNames)
+        private static List<Guid> GetRoleIdsFromNames(IDatabase db, string[] roleNames)
         {
-            List<int> roleIds = new List<int>(roleNames.Length);
+            var roleIds = new List<Guid>(roleNames.Length);
             foreach (string role in roleNames)
             {
-                int id = FindRoleId(db, role);
-                if (id == -1)
+                var id = FindRoleId(db, role);
+                if (id == Guid.Empty)
                 {
                     throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, WebDataResources.SimpleRoleProvider_NoRoleFound, role));
                 }
@@ -180,8 +180,8 @@ namespace WebMatrix.WebData
                 {
                     int userCount = usernames.Length;
                     int roleCount = roleNames.Length;
-                    List<int> userIds = GetUserIdsFromNames(db, usernames);
-                    List<int> roleIds = GetRoleIdsFromNames(db, roleNames);
+                    var userIds = GetUserIdsFromNames(db, usernames);
+                    var roleIds = GetRoleIdsFromNames(db, roleNames);
 
                     // Generate a INSERT INTO for each userid/rowid combination, where userIds are the first params, and roleIds follow
                     for (int uId = 0; uId < userCount; uId++)
@@ -194,7 +194,7 @@ namespace WebMatrix.WebData
                             }
 
                             // REVIEW: is there a way to batch up these inserts?
-                            int rows = db.Execute("INSERT INTO " + UsersInRoleTableName + " VALUES (" + userIds[uId] + "," + roleIds[rId] + "); ");
+                            int rows = db.Execute("INSERT INTO " + UsersInRoleTableName + " VALUES (@0, @1);", userIds[uId], roleIds[rId]);
                             if (rows != 1)
                             {
                                 throw new ProviderException(WebDataResources.Security_DbFailure);
@@ -216,8 +216,8 @@ namespace WebMatrix.WebData
             {
                 using (var db = ConnectToDatabase())
                 {
-                    int roleId = FindRoleId(db, roleName);
-                    if (roleId != -1)
+                    Guid roleId = FindRoleId(db, roleName);
+                    if (roleId != Guid.Empty)
                     {
                         throw new InvalidOperationException(String.Format(CultureInfo.InvariantCulture, WebDataResources.SimpleRoleProvider_RoleExists, roleName));
                     }
@@ -240,8 +240,8 @@ namespace WebMatrix.WebData
             }
             using (var db = ConnectToDatabase())
             {
-                int roleId = FindRoleId(db, roleName);
-                if (roleId == -1)
+                Guid roleId = FindRoleId(db, roleName);
+                if (roleId == Guid.Empty)
                 {
                     return false;
                 }
@@ -307,8 +307,8 @@ namespace WebMatrix.WebData
             }
             using (var db = ConnectToDatabase())
             {
-                int userId = SimpleMembershipProvider.GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
-                if (userId == -1)
+                Guid userId = SimpleMembershipProvider.GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, username);
+                if (userId == Guid.Empty)
                 {
                     throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, WebDataResources.Security_NoUserFound, username));
                 }
@@ -376,12 +376,12 @@ namespace WebMatrix.WebData
 
                 using (var db = ConnectToDatabase())
                 {
-                    List<int> userIds = GetUserIdsFromNames(db, usernames);
-                    List<int> roleIds = GetRoleIdsFromNames(db, roleNames);
+                    List<Guid> userIds = GetUserIdsFromNames(db, usernames);
+                    List<Guid> roleIds = GetRoleIdsFromNames(db, roleNames);
 
-                    foreach (int userId in userIds)
+                    foreach (Guid userId in userIds)
                     {
-                        foreach (int roleId in roleIds)
+                        foreach (Guid roleId in roleIds)
                         {
                             // Review: Is there a way to do these all in one query?
                             int rows = db.Execute("DELETE FROM " + UsersInRoleTableName + " WHERE UserId = " + userId + " and RoleId = " + roleId);
@@ -395,14 +395,14 @@ namespace WebMatrix.WebData
             }
         }
 
-        private static int FindRoleId(IDatabase db, string roleName)
+        private static Guid FindRoleId(IDatabase db, string roleName)
         {
             var result = db.QuerySingle(@"SELECT RoleId FROM " + RoleTableName + " WHERE (RoleName = @0)", roleName);
             if (result == null)
             {
-                return -1;
+                return Guid.Empty;
             }
-            return (int)result[0];
+            return (Guid)result[0];
         }
 
         // Inherited from RoleProvider ==> Forwarded to previous provider if this provider hasn't been initialized
@@ -414,7 +414,7 @@ namespace WebMatrix.WebData
             }
             using (var db = ConnectToDatabase())
             {
-                return (FindRoleId(db, roleName) != -1);
+                return (FindRoleId(db, roleName) != Guid.Empty);
             }
         }
     }
