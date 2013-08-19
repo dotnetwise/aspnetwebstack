@@ -18,7 +18,7 @@ namespace WebMatrix.WebData.Test
         {
             // Arrange
             var database = new Mock<MockDatabase>(MockBehavior.Strict);
-            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM webpages_Membership WHERE [ConfirmationToken] = @0", "foo"))
+            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM aspnet_Membership WHERE [ConfirmationToken] = @0", "foo"))
                 .Returns(Enumerable.Empty<DynamicRecord>());
             var simpleMembershipProvider = new TestSimpleMembershipProvider(database.Object);
 
@@ -35,7 +35,7 @@ namespace WebMatrix.WebData.Test
             // Arrange
             var database = new Mock<MockDatabase>(MockBehavior.Strict);
             DynamicRecord record = GetRecord(new Guid("{7646C96B-6D04-42BC-8349-260DB5AB5214}"), "Foo");
-            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM webpages_Membership WHERE [ConfirmationToken] = @0", "foo"))
+            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM aspnet_Membership WHERE [ConfirmationToken] = @0", "foo"))
                 .Returns(new[] { record });
             var simpleMembershipProvider = new TestSimpleMembershipProvider(database.Object);
 
@@ -53,7 +53,7 @@ namespace WebMatrix.WebData.Test
             var database = new Mock<MockDatabase>(MockBehavior.Strict);
             DynamicRecord recordA = GetRecord(new Guid("{7646C96B-6D04-42BC-8349-260DB5AB5214}"), "Foo");
             DynamicRecord recordB = GetRecord(new Guid("{9D0F4BB9-9B4A-41FF-BA25-EC4DEFE16506}"), "fOo");
-            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM webpages_Membership WHERE [ConfirmationToken] = @0", "foo"))
+            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM aspnet_Membership WHERE [ConfirmationToken] = @0", "foo"))
                 .Returns(new[] { recordA, recordB });
             var simpleMembershipProvider = new TestSimpleMembershipProvider(database.Object);
 
@@ -70,9 +70,9 @@ namespace WebMatrix.WebData.Test
             // Arrange
             var database = new Mock<MockDatabase>(MockBehavior.Strict);
             DynamicRecord record = GetRecord(new Guid("{171E57BC-3D39-4045-807A-3B71C7F1532E}"), "foo");
-            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM webpages_Membership WHERE [ConfirmationToken] = @0", "foo"))
+            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM aspnet_Membership WHERE [ConfirmationToken] = @0", "foo"))
                 .Returns(new[] { record }).Verifiable();
-            database.Setup(d => d.Execute("UPDATE webpages_Membership SET [IsConfirmed] = 1 WHERE [UserId] = @0", new Guid("{171E57BC-3D39-4045-807A-3B71C7F1532E}"))).Returns(1).Verifiable();
+            database.Setup(d => d.Execute("UPDATE aspnet_Membership SET [IsConfirmed] = 1 WHERE [UserId] = @0", new Guid("{171E57BC-3D39-4045-807A-3B71C7F1532E}"))).Returns(1).Verifiable();
             var simpleMembershipProvider = new TestSimpleMembershipProvider(database.Object);
 
             // Act
@@ -91,9 +91,9 @@ namespace WebMatrix.WebData.Test
             DynamicRecord recordA = GetRecord(new Guid("{171E57BC-3D39-4045-807A-3B71C7F1532E}"), "Foo");
             DynamicRecord recordB = GetRecord(new Guid("{417AD677-61B5-41EE-9D3D-E5F4AE954816}"), "foo");
             DynamicRecord recordC = GetRecord(new Guid("{BA1999B9-A301-4FB8-8D2D-B0BC58799697}"), "fOo");
-            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM webpages_Membership WHERE [ConfirmationToken] = @0", "foo"))
+            database.Setup(d => d.Query("SELECT [UserId], [ConfirmationToken] FROM aspnet_Membership WHERE [ConfirmationToken] = @0", "foo"))
                 .Returns(new[] { recordA, recordB, recordC }).Verifiable();
-            database.Setup(d => d.Execute("UPDATE webpages_Membership SET [IsConfirmed] = 1 WHERE [UserId] = @0", new Guid("{417AD677-61B5-41EE-9D3D-E5F4AE954816}"))).Returns(1).Verifiable();
+            database.Setup(d => d.Execute("UPDATE aspnet_Membership SET [IsConfirmed] = 1 WHERE [UserId] = @0", new Guid("{417AD677-61B5-41EE-9D3D-E5F4AE954816}"))).Returns(1).Verifiable();
             var simpleMembershipProvider = new TestSimpleMembershipProvider(database.Object);
 
             // Act
@@ -109,7 +109,7 @@ namespace WebMatrix.WebData.Test
         {
             // Arrange
             var database = new Mock<MockDatabase>(MockBehavior.Strict);
-            database.Setup(d => d.QuerySingle("SELECT m.[UserId], m.[ConfirmationToken] FROM webpages_Membership m JOIN [Users] u ON m.[UserId] = u.[UserId] WHERE m.[ConfirmationToken] = @0 AND u.[UserName] = @1", "foo", "user12")).Returns(null);
+            database.Setup(d => d.QuerySingle("SELECT m.[UserId], m.[ConfirmationToken] FROM aspnet_Membership m JOIN [Users] u ON m.[UserId] = u.[UserId] WHERE m.[ConfirmationToken] = @0 AND u.[UserName] = @1", "foo", "user12")).Returns(null);
             var simpleMembershipProvider = new TestSimpleMembershipProvider(database.Object) { UserIdColumn = "UserId", UserNameColumn = "UserName", UserTableName = "Users" };
 
             // Act
@@ -125,7 +125,7 @@ namespace WebMatrix.WebData.Test
             // Arrange
             var database = new Mock<MockDatabase>(MockBehavior.Strict);
             DynamicRecord record = GetRecord(new Guid("{7646C96B-6D04-42BC-8349-260DB5AB5214}"), "Foo");
-            database.Setup(d => d.QuerySingle("SELECT m.[UserId], m.[ConfirmationToken] FROM webpages_Membership m JOIN [Users_bkp2_1] u ON m.[UserId] = u.[wishlist_site_real_user_id] WHERE m.[ConfirmationToken] = @0 AND u.[wishlist_site_real_user_name] = @1", "foo", "user13")).Returns(record);
+            database.Setup(d => d.QuerySingle("SELECT m.[UserId], m.[ConfirmationToken] FROM aspnet_Membership m JOIN [Users_bkp2_1] u ON m.[UserId] = u.[wishlist_site_real_user_id] WHERE m.[ConfirmationToken] = @0 AND u.[wishlist_site_real_user_name] = @1", "foo", "user13")).Returns(record);
             var simpleMembershipProvider = new TestSimpleMembershipProvider(database.Object) { UserIdColumn = "wishlist_site_real_user_id", UserNameColumn = "wishlist_site_real_user_name", UserTableName = "Users_bkp2_1" };
 
             // Act
@@ -141,9 +141,9 @@ namespace WebMatrix.WebData.Test
             // Arrange
             var database = new Mock<MockDatabase>(MockBehavior.Strict);
             DynamicRecord record = GetRecord(new Guid("{171E57BC-3D39-4045-807A-3B71C7F1532E}"), "foo");
-            database.Setup(d => d.QuerySingle("SELECT m.[UserId], m.[ConfirmationToken] FROM webpages_Membership m JOIN [Users] u ON m.[UserId] = u.[Id] WHERE m.[ConfirmationToken] = @0 AND u.[UserName] = @1", "foo", "user14"))
+            database.Setup(d => d.QuerySingle("SELECT m.[UserId], m.[ConfirmationToken] FROM aspnet_Membership m JOIN [Users] u ON m.[UserId] = u.[Id] WHERE m.[ConfirmationToken] = @0 AND u.[UserName] = @1", "foo", "user14"))
                 .Returns(record).Verifiable();
-            database.Setup(d => d.Execute("UPDATE webpages_Membership SET [IsConfirmed] = 1 WHERE [UserId] = @0", new Guid("{171E57BC-3D39-4045-807A-3B71C7F1532E}"))).Returns(1).Verifiable();
+            database.Setup(d => d.Execute("UPDATE aspnet_Membership SET [IsConfirmed] = 1 WHERE [UserId] = @0", new Guid("{171E57BC-3D39-4045-807A-3B71C7F1532E}"))).Returns(1).Verifiable();
             var simpleMembershipProvider = new TestSimpleMembershipProvider(database.Object) { UserTableName = "Users", UserIdColumn = "Id", UserNameColumn = "UserName" };
 
             // Act
