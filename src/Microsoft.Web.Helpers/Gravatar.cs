@@ -67,7 +67,7 @@ namespace Microsoft.Web.Helpers
 
             StringBuilder url = new StringBuilder(GravatarUrl);
             email = email.Trim().ToLowerInvariant();
-            url.Append(Crypto.Hash(email, algorithm: "md5").ToLowerInvariant());
+            url.Append(PasswordCrypto.Instance.Hash(email, algorithm: "md5").ToLowerInvariant());
 
             if (!String.IsNullOrEmpty(imageExtension))
             {

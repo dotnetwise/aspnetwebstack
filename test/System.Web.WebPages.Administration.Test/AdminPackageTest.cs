@@ -209,7 +209,7 @@ namespace System.Web.WebPages.Administration.Test
             // Trim everything after the new line. Cannot use the properties from the stream since it is already closed by the writer.
             savedPassword = savedPassword.Substring(0, savedPassword.IndexOf(Environment.NewLine));
 
-            Assert.True(Crypto.VerifyHashedPassword(savedPassword, password));
+            Assert.True(PasswordCrypto.Instance.VerifyHashedPassword(null, savedPassword, password));
         }
 
         [Fact]
@@ -228,7 +228,7 @@ namespace System.Web.WebPages.Administration.Test
             // Arrange
             var ms = new MemoryStream();
             var writer = new StreamWriter(ms);
-            writer.WriteLine(Crypto.HashPassword("password"));
+            writer.WriteLine(PasswordCrypto.Instance.HashPassword("password"));
             writer.Flush();
             ms.Seek(0, SeekOrigin.Begin);
 

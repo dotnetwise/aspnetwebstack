@@ -149,7 +149,7 @@ namespace System.Web.WebPages.Administration
             using (var writer = new StreamWriter(stream))
             {
                 // Write the salty password
-                writer.WriteLine(Crypto.HashPassword(password));
+                writer.WriteLine(PasswordCrypto.Instance.HashPassword(password));
             }
 
             return true;

@@ -9,6 +9,42 @@ using System.Web.Helpers.Resources;
 
 namespace System.Web.Helpers
 {
+    public class PasswordCrypto
+    {
+        public static PasswordCrypto Instance = new PasswordCrypto();
+        protected const int SaltSize = 128 / 8; // 128 bits
+        public virtual string HashPassword(string password)
+        {
+            return Crypto.HashPassword(password);
+        }
+        public virtual bool VerifyHashedPassword(string userName, string hashedPassword, string password)
+        {
+            return Crypto.VerifyHashedPassword(hashedPassword, password);
+        }
+        public virtual string GenerateSalt(int byteLength = SaltSize)
+        {
+            return Crypto.GenerateSalt(byteLength);
+        }
+        public virtual string Hash(string input, string algorithm = "sha256")
+        {
+            return Crypto.Hash(input, algorithm);
+        }
+
+        public virtual string Hash(byte[] input, string algorithm = "sha256")
+        {
+            return Crypto.Hash(input, algorithm);
+        }
+
+        public virtual string SHA1(string input)
+        {
+            return Crypto.SHA1(input);
+        }
+
+        public virtual string SHA256(string input)
+        {
+            return Crypto.SHA256(input);
+        }
+    }
     public static class Crypto
     {
         private const int PBKDF2IterCount = 1000; // default for Rfc2898DeriveBytes

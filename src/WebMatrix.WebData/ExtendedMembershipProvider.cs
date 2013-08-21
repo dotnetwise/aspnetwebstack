@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Web.Helpers;
 using System.Web.Security;
 
 namespace WebMatrix.WebData

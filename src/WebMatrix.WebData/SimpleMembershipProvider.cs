@@ -270,7 +270,7 @@ namespace WebMatrix.WebData
                         CreateDate                              datetime            ,
                         ConfirmationToken                       nvarchar(128)       ,
                         IsConfirmed                             bit                 DEFAULT 0,
-                        LastPasswordFailureDate                 datetime            ,
+                        FailedPasswordAttemptWindowStart                 datetime            ,
                         FailedPasswordAttemptCount         int                 NOT NULL DEFAULT 0,
                         Password                                nvarchar(128)       NOT NULL,
                         LastPasswordChangedDate                     datetime            ,
@@ -409,41 +409,22 @@ namespace WebMatrix.WebData
         public override string CreateAccount(string userName, string password, bool requireConfirmationToken)
         {
             VerifyInitialized();
-
             if (password.IsEmpty())
             {
                 throw new MembershipCreateUserException(MembershipCreateStatus.InvalidPassword);
             }
-
-            string hashedPassword = Crypto.HashPassword(password);
-            if (hashedPassword.Length > 128)
-            {
-                throw new MembershipCreateUserException(MembershipCreateStatus.InvalidPassword);
-            }
-
             if (userName.IsEmpty())
             {
                 throw new MembershipCreateUserException(MembershipCreateStatus.InvalidUserName);
             }
 
-            using (var db = ConnectToDatabase())
+            if (_previousProvider != null)
             {
-                // Step 1: Check if the user exists in the Users table
-                Guid uid = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-                if (uid == Guid.Empty)
-                {
-                    // User not found
-                    throw new MembershipCreateUserException(MembershipCreateStatus.ProviderError);
-                }
+                MembershipCreateStatus status;
+                var user = _previousProvider.CreateUser(userName, password, userName + "@sb.com", null, null, !requireConfirmationToken, Guid.NewGuid(), out status);
+                if (status != MembershipCreateStatus.Success)
+                    throw new MembershipCreateUserException(status);
 
-                // Step 2: Check if the user exists in the Membership table: Error if yes.
-                var result = db.QuerySingle(@"SELECT COUNT(*) FROM [" + MembershipTableName + "] WHERE UserId = @0", uid);
-                if (result[0] > 0)
-                {
-                    throw new MembershipCreateUserException(MembershipCreateStatus.DuplicateUserName);
-                }
-
-                // Step 3: Create user in Membership table
                 string token = null;
                 object dbtoken = DBNull.Value;
                 if (requireConfirmationToken)
@@ -451,15 +432,64 @@ namespace WebMatrix.WebData
                     token = GenerateToken();
                     dbtoken = token;
                 }
-                int defaultNumPasswordFailures = 0;
-
-                int insert = db.Execute(@"INSERT INTO [" + MembershipTableName + "] (UserId, [Password], PasswordSalt, IsConfirmed, ConfirmationToken, CreateDate, LastPasswordChangedDate, FailedPasswordAttemptCount)"
-                                        + " VALUES (@0, @1, @2, @3, @4, @5, @5, @6)", uid, hashedPassword, String.Empty /* salt column is unused */, !requireConfirmationToken, dbtoken, DateTime.UtcNow, defaultNumPasswordFailures);
-                if (insert != 1)
+                using (var db = ConnectToDatabase())
                 {
-                    throw new MembershipCreateUserException(MembershipCreateStatus.ProviderError);
+                    var update = db.Execute("UPDATE " + MembershipTableName + " SET IsConfirmed = @0, ConfirmationToken = @1 WHERE UserId = @2", !requireConfirmationToken, dbtoken, user.ProviderUserKey);
+                    if (update != 1)
+                    {
+                        throw new MembershipCreateUserException(MembershipCreateStatus.ProviderError);
+                    }
                 }
                 return token;
+            }
+            else
+            {
+
+
+
+
+                string hashedPassword = PasswordCrypto.Instance.HashPassword(password);
+                if (hashedPassword.Length > 128)
+                {
+                    throw new MembershipCreateUserException(MembershipCreateStatus.InvalidPassword);
+                }
+
+
+                using (var db = ConnectToDatabase())
+                {
+                    // Step 1: Check if the user exists in the Users table
+                    Guid uid = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
+                    if (uid == Guid.Empty)
+                    {
+                        // User not found
+                        throw new MembershipCreateUserException(MembershipCreateStatus.ProviderError);
+                    }
+
+                    // Step 2: Check if the user exists in the Membership table: Error if yes.
+                    var result = db.QuerySingle(@"SELECT COUNT(*) FROM [" + MembershipTableName + "] WHERE UserId = @0", uid);
+                    if (result[0] > 0)
+                    {
+                        throw new MembershipCreateUserException(MembershipCreateStatus.DuplicateUserName);
+                    }
+
+                    // Step 3: Create user in Membership table
+                    string token = null;
+                    object dbtoken = DBNull.Value;
+                    if (requireConfirmationToken)
+                    {
+                        token = GenerateToken();
+                        dbtoken = token;
+                    }
+                    int defaultNumPasswordFailures = 0;
+
+                    int insert = db.Execute(@"INSERT INTO [" + MembershipTableName + "] (UserId, [Password], PasswordSalt, IsConfirmed, ConfirmationToken, CreateDate, LastPasswordChangedDate, FailedPasswordAttemptCount)"
+                                            + " VALUES (@0, @1, @2, @3, @4, @5, @5, @6)", uid, hashedPassword, String.Empty /* salt column is unused */, !requireConfirmationToken, dbtoken, DateTime.UtcNow, defaultNumPasswordFailures);
+                    if (insert != 1)
+                    {
+                        throw new MembershipCreateUserException(MembershipCreateStatus.ProviderError);
+                    }
+                    return token;
+                }
             }
         }
 
@@ -473,11 +503,11 @@ namespace WebMatrix.WebData
             throw new NotSupportedException();
         }
 
-        private void CreateUserRow(IDatabase db, string userName, IDictionary<string, object> values)
+        private void CreateUserRow(IDatabase db, string userName, IDictionary<string, object> values, bool updateRow)
         {
             // Make sure user doesn't exist
             Guid userId = GetUserId(db, SafeUserTableName, SafeUserNameColumn, SafeUserIdColumn, userName);
-            if (userId != Guid.Empty)
+            if (userId != Guid.Empty && !updateRow)
             {
                 throw new MembershipCreateUserException(MembershipCreateStatus.DuplicateUserName);
             }
@@ -499,7 +529,9 @@ namespace WebMatrix.WebData
                         continue;
                     }
                     columnString.Append(",").Append(key);
-                    argsString.Append(",@").Append(index++);
+                    if (updateRow)
+                        argsString.Append(",").Append(key).Append(" = @").Append(index++);
+                    else argsString.Append(",@").Append(index++);
                     object value = values[key];
                     if (value == null)
                     {
@@ -508,8 +540,15 @@ namespace WebMatrix.WebData
                     argsArray.Add(value);
                 }
             }
-
-            int rows = db.Execute("INSERT INTO " + SafeUserTableName + " (" + columnString.ToString() + ") VALUES (" + argsString.ToString() + ")", argsArray.ToArray());
+            var sb = new StringBuilder();
+            if (updateRow)
+            {
+                sb.Append("UPDATE ").Append(SafeUserTableName).Append("SET ").Append(UserNameColumn).Append(" = ").Append(argsString.ToString()).Append(" WHERE UserId = @").Append(argsArray.Count());
+                argsArray.Add(userId);
+            }
+            else sb.Append("INSERT INTO ").Append(SafeUserTableName).Append(" (").Append(columnString.ToString()).Append(") VALUES (").Append(argsString.ToString()).Append(")");
+            var sql = sb.ToString();
+            int rows = db.Execute(sql, argsArray.ToArray());
             if (rows != 1)
             {
                 throw new MembershipCreateUserException(MembershipCreateStatus.ProviderError);
@@ -523,8 +562,12 @@ namespace WebMatrix.WebData
 
             using (var db = ConnectToDatabase())
             {
-                CreateUserRow(db, userName, values);
-                return CreateAccount(userName, password, requireConfirmation);
+                if (_previousProvider == null)
+                    CreateUserRow(db, userName, values, false);
+                var result = CreateAccount(userName, password, requireConfirmation);
+                if (_previousProvider != null)
+                    CreateUserRow(db, userName, values, true);
+                return result;
             }
         }
 
@@ -540,7 +583,7 @@ namespace WebMatrix.WebData
 
         private static bool SetPassword(IDatabase db, Guid userId, string newPassword)
         {
-            string hashedPassword = Crypto.HashPassword(newPassword);
+            string hashedPassword = PasswordCrypto.Instance.HashPassword(newPassword);
             if (hashedPassword.Length > 128)
             {
                 throw new ArgumentException(WebDataResources.SimpleMembership_PasswordTooLong);
@@ -807,7 +850,7 @@ namespace WebMatrix.WebData
                     throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, WebDataResources.Security_NoUserFound, userName));
                 }
 
-                var failureDate = db.QuerySingle(@"SELECT LastPasswordFailureDate FROM " + MembershipTableName + " WHERE (UserId = @0)", userId);
+                var failureDate = db.QuerySingle(@"SELECT FailedPasswordAttemptWindowStart FROM " + MembershipTableName + " WHERE (UserId = @0)", userId);
                 if (failureDate != null && failureDate[0] != null)
                 {
                     return (DateTime)failureDate[0];
@@ -818,27 +861,30 @@ namespace WebMatrix.WebData
 
         private bool CheckPassword(IDatabase db, Guid userId, string password)
         {
-            string hashedPassword = GetHashedPassword(db, userId);
-            bool verificationSucceeded = (hashedPassword != null && Crypto.VerifyHashedPassword(hashedPassword, password));
-            if (verificationSucceeded)
-            {
-                // Reset password failure count on successful credential check
-                db.Execute(@"UPDATE " + MembershipTableName + " SET FailedPasswordAttemptCount = 0 WHERE (UserId = @0)", userId);
-            }
-            else
-            {
-                int failures = GetPasswordFailuresSinceLastSuccess(db, userId);
-                if (failures != -1)
-                {
-                    db.Execute(@"UPDATE " + MembershipTableName + " SET FailedPasswordAttemptCount = @1, LastPasswordFailureDate = @2 WHERE (UserId = @0)", userId, failures + 1, DateTime.UtcNow);
-                }
-            }
+            string userName;
+            string hashedPassword = GetHashedPassword(db, userId, out userName);
+            bool verificationSucceeded = (hashedPassword != null && PasswordCrypto.Instance.VerifyHashedPassword(userName, hashedPassword, password));
+            //LAU: we already doing this on the SqlMembershipProvider
+            //if (verificationSucceeded)
+            //{
+            //    // Reset password failure count on successful credential check
+            //    db.Execute(@"UPDATE " + MembershipTableName + " SET FailedPasswordAttemptCount = 0 WHERE (UserId = @0)", userId);
+            //}
+            //else
+            //{
+            //    int failures = GetPasswordFailuresSinceLastSuccess(db, userId);
+            //    if (failures != -1)
+            //    {
+            //        db.Execute(@"UPDATE " + MembershipTableName + " SET FailedPasswordAttemptCount = @1, LastPasswordFailureDate = @2 WHERE (UserId = @0)", userId, failures + 1, DateTime.UtcNow);
+            //    }
+            //}
             return verificationSucceeded;
         }
 
-        private string GetHashedPassword(IDatabase db, Guid userId)
+        private string GetHashedPassword(IDatabase db, Guid userId, out string userName)
         {
-            var pwdQuery = db.Query(@"SELECT m.[Password] " +
+            userName = null;
+            var pwdQuery = db.Query(@"SELECT m.[Password], u.[UserName]" +
                                     @"FROM " + MembershipTableName + " m, " + SafeUserTableName + " u " +
                                     @"WHERE m.UserId = @0 AND m.UserId = u." + SafeUserIdColumn, userId).ToList();
             // REVIEW: Should get exactly one match, should we throw if we get > 1?
@@ -846,6 +892,7 @@ namespace WebMatrix.WebData
             {
                 return null;
             }
+            userName = pwdQuery[0].UserName;
             return pwdQuery[0].Password;
         }
 
