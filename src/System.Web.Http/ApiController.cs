@@ -28,7 +28,6 @@ namespace System.Web.Http
         private bool _disposed;
         private ModelStateDictionary _modelState;
         private HttpControllerContext _controllerContext;
-        private IHostPrincipalService _principalService;
         private bool _initialized;
 
         /// <summary>Gets the configuration.</summary>
@@ -36,10 +35,7 @@ namespace System.Web.Http
         public HttpConfiguration Configuration
         {
             get { return ControllerContext.Configuration; }
-            set
-            {
-                ControllerContext.Configuration = value;
-            }
+            set { ControllerContext.Configuration = value; }
         }
 
         /// <summary>Gets the controller context.</summary>
@@ -51,7 +47,10 @@ namespace System.Web.Http
                 // unit test only.
                 if (_controllerContext == null)
                 {
-                    _controllerContext = new HttpControllerContext();
+                    _controllerContext = new HttpControllerContext
+                    {
+                        RequestContext = new RequestBackedHttpRequestContext()
+                    };
                 }
 
                 return _controllerContext;
@@ -90,19 +89,39 @@ namespace System.Web.Http
             }
         }
 
-        /// <summary>Gets the HTTP request message.</summary>
+        /// <summary>Gets or sets the HTTP request message.</summary>
         /// <remarks>The setter is intended for unit testing purposes only.</remarks>
         public HttpRequestMessage Request
         {
-            get { return ControllerContext.Request; }
+            get
+            {
+                return ControllerContext.Request;
+            }
             set
             {
-                ControllerContext.Request = value;
-
-                // Unit testing only
-                if (Request.GetRequestContext() == null)
+                if (value == null)
                 {
-                    Request.SetRequestContext(RequestContext);
+                    throw Error.PropertyNull();
+                }
+
+                HttpRequestContext contextOnRequest = value.GetRequestContext();
+                HttpRequestContext contextOnController = RequestContext;
+
+                if (contextOnRequest != null && contextOnRequest != contextOnController)
+                {
+                    // Prevent unit testers from setting conflicting requests contexts.
+                    throw new InvalidOperationException(SRResources.RequestContextConflict);
+                }
+
+                ControllerContext.Request = value;
+                value.SetRequestContext(contextOnController);
+
+                RequestBackedHttpRequestContext requestBackedContext =
+                    contextOnController as RequestBackedHttpRequestContext;
+
+                if (requestBackedContext != null)
+                {
+                    requestBackedContext.Request = value;
                 }
             }
         }
@@ -111,22 +130,47 @@ namespace System.Web.Http
         /// <remarks>The setter is intended for unit testing purposes only.</remarks>
         public HttpRequestContext RequestContext
         {
-            get { return ControllerContext.RequestContext; }
-            set { ControllerContext.RequestContext = value; }
+            get
+            {
+                return ControllerContext.RequestContext;
+            }
+            set
+            {
+                if (value == null)
+                {
+                    throw Error.PropertyNull();
+                }
+
+                HttpRequestContext oldContext = ControllerContext.RequestContext;
+                HttpRequestMessage request = Request;
+
+                if (request != null)
+                {
+                    HttpRequestContext contextOnRequest = request.GetRequestContext();
+
+                    if (contextOnRequest != null && contextOnRequest != oldContext && contextOnRequest != value)
+                    {
+                        // Prevent unit testers from setting conflicting requests contexts.
+                        throw new InvalidOperationException(SRResources.RequestContextConflict);
+                    }
+
+                    request.SetRequestContext(value);
+                }
+
+                ControllerContext.RequestContext = value;
+            }
         }
 
         /// <summary>Gets a factory used to generate URLs to other APIs.</summary>
         /// <remarks>The setter is intended for unit testing purposes only.</remarks>
         public UrlHelper Url
         {
-            get { return RequestContext.Url ?? (Request != null ? new UrlHelper(Request) : null); }
+            get { return RequestContext.Url; }
             set { RequestContext.Url = value; }
         }
 
-        /// <summary>
-        /// Returns the current principal associated with this request.
-        /// </summary>
-        [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic", Justification = "That would make for poor usability.")]
+        /// <summary>Gets or sets the current principal associated with this request.</summary>
+        /// <remarks>The setter is intended for unit testing purposes only.</remarks>
         public IPrincipal User
         {
             get { return RequestContext.Principal; }
@@ -177,8 +221,7 @@ namespace System.Web.Http
             }
             if (authenticationFilters.Length > 0)
             {
-                result = new AuthenticationFilterResult(actionContext, this, authenticationFilters, _principalService,
-                    controllerContext.Request, result);
+                result = new AuthenticationFilterResult(actionContext, this, authenticationFilters, result);
             }
 
             return InvokeActionWithExceptionFilters(result, actionContext, cancellationToken, exceptionFilters);
@@ -400,6 +443,46 @@ namespace System.Web.Http
             return new OkNegotiatedContentResult<T>(content, this);
         }
 
+        /// <summary>Creates a <see cref="RedirectResult"/> (302 Found) with the specified value.</summary>
+        /// <param name="location">The location to which to redirect.</param>
+        /// <returns>A <see cref="RedirectResult"/> with the specified value.</returns>
+        protected internal virtual RedirectResult Redirect(string location)
+        {
+            if (location == null)
+            {
+                throw new ArgumentNullException("location");
+            }
+
+            return Redirect(new Uri(location));
+        }
+
+        /// <summary>Creates a <see cref="RedirectResult"/> (302 Found) with the specified value.</summary>
+        /// <param name="location">The location to which to redirect.</param>
+        /// <returns>A <see cref="RedirectResult"/> with the specified value.</returns>
+        protected internal virtual RedirectResult Redirect(Uri location)
+        {
+            return new RedirectResult(location, this);
+        }
+
+        /// <summary>Creates a <see cref="RedirectToRouteResult"/> (302 Found) with the specified values.</summary>
+        /// <param name="routeName">The name of the route to use for generating the URL.</param>
+        /// <param name="routeValues">The route data to use for generating the URL.</param>
+        /// <returns>A <see cref="RedirectToRouteResult"/> with the specified values.</returns>
+        protected internal RedirectToRouteResult RedirectToRoute(string routeName, object routeValues)
+        {
+            return RedirectToRoute(routeName, new HttpRouteValueDictionary(routeValues));
+        }
+
+        /// <summary>Creates a <see cref="RedirectToRouteResult"/> (302 Found) with the specified values.</summary>
+        /// <param name="routeName">The name of the route to use for generating the URL.</param>
+        /// <param name="routeValues">The route data to use for generating the URL.</param>
+        /// <returns>A <see cref="RedirectToRouteResult"/> with the specified values.</returns>
+        protected internal virtual RedirectToRouteResult RedirectToRoute(string routeName,
+            IDictionary<string, object> routeValues)
+        {
+            return new RedirectToRouteResult(routeName, routeValues, this);
+        }
+
         /// <summary>Creates a <see cref="ResponseMessageResult"/> with the specified response.</summary>
         /// <param name="response">The HTTP response message.</param>
         /// <returns>A <see cref="ResponseMessageResult"/> for the specified response.</returns>
@@ -445,12 +528,6 @@ namespace System.Web.Http
 
             _initialized = true;
             _controllerContext = controllerContext;
-            _principalService = Configuration.Services.GetHostPrincipalService();
-
-            if (_principalService == null)
-            {
-                throw new InvalidOperationException(SRResources.ServicesContainerIHostPrincipalServiceRequired);
-            }
         }
 
         internal static async Task<HttpResponseMessage> InvokeActionWithExceptionFilters(IHttpActionResult innerResult,

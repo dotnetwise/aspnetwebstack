@@ -18,7 +18,7 @@ namespace System.Web.Http.Routing
         // Prefix with a \0 to protect against conflicts with user keys. 
         public const string SubRouteDataKey = "MS_SubRoutes";
 
-        private HttpRouteCollection _subRoutes;
+        private HttpSubRouteCollection _subRoutes;
 
         private static readonly IDictionary<string, object> _empty = EmptyReadOnlyDictionary<string, object>.Value;
         
@@ -33,7 +33,7 @@ namespace System.Web.Http.Routing
 
         // deferred hook for initializing the sub routes. The composite route can be added during the middle of 
         // intializing, but then the actual sub routes can get populated after initialization has finished. 
-        public HttpRouteCollection EnsureInitialized(Func<HttpRouteCollection> initializer)
+        public HttpSubRouteCollection EnsureInitialized(Func<HttpSubRouteCollection> initializer)
         {
             if (_beingInitialized && _subRoutes == null)
             {
@@ -55,7 +55,7 @@ namespace System.Web.Http.Routing
             }
         }
 
-        public HttpRouteCollection SubRoutes
+        public HttpSubRouteCollection SubRoutes
         {
             get
             {
@@ -112,26 +112,13 @@ namespace System.Web.Http.Routing
         // Else, returns a composite route data that encapsulates the possible routes this may match against. 
         public IHttpRouteData GetRouteData(string virtualPathRoot, HttpRequestMessage request)
         {
-            // Only take 1st match per verb. This is to honor URL constraints.
-            // EG, consider this scenario:
-            // (1)  GET /controller/{id:int}
-            // (2)  GET /controller/{id}
-            // (3)  PUT /controller/{value}
-            // Matching "/controller/15" should only return routes 1 and 3, not 2. 
-            HashSet<HttpMethod> methods = new HashSet<HttpMethod>();
-
             List<IHttpRouteData> list = new List<IHttpRouteData>();
             foreach (IHttpRoute route in SubRoutes)
             {
                 IHttpRouteData match = route.GetRouteData(virtualPathRoot, request);
                 if (match != null)
                 {
-                    // Is this the first verb?
-                    HttpMethod verb = match.Route.GetDirectRouteVerb();
-                    if (methods.Add(verb))
-                    {
-                        list.Add(match);
-                    }
+                    list.Add(match);
                 }
             }
             if (list.Count == 0)
@@ -163,42 +150,18 @@ namespace System.Web.Http.Routing
         {
             public RouteCollectionRouteData(IHttpRoute parent, IHttpRouteData[] subRouteDatas)
             {
-                this.Route = parent;
-                this.SubRouteDatas = subRouteDatas;
+                Route = parent;
+
+                // Each sub route may have different values. Callers need to enumerate the subroutes 
+                // and individually query each. 
+                // Find sub-routes via the SubRouteDataKey; don't expose as a property since the RouteData 
+                // can be wrapped in an outer type that doesn't propagate properties. 
+                Values = new HttpRouteValueDictionary() { { SubRouteDataKey, subRouteDatas } };
             }
 
             public IHttpRoute Route { get; private set; }
 
-            public IHttpRouteData[] SubRouteDatas { get; private set; }
-
-            private IDictionary<string, object> _values;
-
-            public IDictionary<string, object> Values
-            {
-                get
-                {
-                    // Keys is just a union of the Keys from the sub routes. 
-                    // We don't actually use the values, because different subroutes may have conflicting values.
-                    // Action selection just needs to know which keys are present. 
-                    if (_values == null)
-                    {
-                        var dict = new HttpRouteValueDictionary();
-                        foreach (var data in SubRouteDatas)
-                        {
-                            foreach (var kv in data.Values)
-                            {
-                                // Actual value doesn't matter. We just look for the presence of the key. 
-                                dict[kv.Key] = String.Empty;
-                            }
-                        }
-                        dict[SubRouteDataKey] = SubRouteDatas;
-
-                        _values = dict;
-                    }
-
-                    return _values;
-                }
-            }
+            public IDictionary<string, object> Values { get; private set; }
         }        
     }
 }

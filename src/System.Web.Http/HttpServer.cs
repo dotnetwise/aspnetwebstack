@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Http.Controllers;
 using System.Web.Http.Dispatcher;
-using System.Web.Http.Hosting;
 using System.Web.Http.Properties;
 
 namespace System.Web.Http
@@ -162,9 +161,12 @@ namespace System.Web.Http
             // Ensure we have a principal on the request context (if there is a request context).
             HttpRequestContext requestContext = request.GetRequestContext();
 
-            if (requestContext != null && requestContext.Principal == null)
+            if (requestContext == null)
             {
-                requestContext.Principal = Thread.CurrentPrincipal;
+                requestContext = new RequestBackedHttpRequestContext(request);
+
+                // if the host did not set a request context we will also set it back to the request.
+                request.SetRequestContext(requestContext);
             }
 
             try

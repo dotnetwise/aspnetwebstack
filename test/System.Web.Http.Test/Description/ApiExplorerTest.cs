@@ -18,7 +18,7 @@ namespace System.Web.Http.Description
             var controllerDescriptor = new HttpControllerDescriptor(config, "ApiExplorerValues", typeof(ApiExplorerValuesController));
             var action = new ReflectedHttpActionDescriptor(controllerDescriptor, typeof(ApiExplorerValuesController).GetMethod("Get"));
             var actions = new ReflectedHttpActionDescriptor[] { action };
-            config.Routes.Add("Route", new HttpDirectRoute(routeTemplate, actions));
+            config.Routes.Add("Route", HttpRouteBuilder.BuildDirectRoute(routeTemplate, 0, actions));
 
             var descriptions = new ApiExplorer(config).ApiDescriptions;
 
@@ -39,7 +39,7 @@ namespace System.Web.Http.Description
                 new ReflectedHttpActionDescriptor(controllerDescriptor, typeof(ApiExplorerValuesController).GetMethod("Get")),
                 new ReflectedHttpActionDescriptor(controllerDescriptor, typeof(ApiExplorerValuesController).GetMethod("Post")),
             };
-            config.Routes.Add("Route", new HttpDirectRoute(routeTemplate, actions));
+            config.Routes.Add("Route", HttpRouteBuilder.BuildDirectRoute(routeTemplate, 0, actions));
 
             var descriptions = new ApiExplorer(config).ApiDescriptions;
 
@@ -59,7 +59,7 @@ namespace System.Web.Http.Description
                 new ReflectedHttpActionDescriptor(controllerDescriptor, typeof(IgnoreApiValuesController).GetMethod("Get")),
                 new ReflectedHttpActionDescriptor(controllerDescriptor, typeof(IgnoreApiValuesController).GetMethod("Post")),
             };
-            config.Routes.Add("Route", new HttpDirectRoute(routeTemplate, actions));
+            config.Routes.Add("Route", HttpRouteBuilder.BuildDirectRoute(routeTemplate, 0, actions));
 
             var descriptions = new ApiExplorer(config).ApiDescriptions;
 
@@ -90,8 +90,8 @@ namespace System.Web.Http.Description
             var action = new ReflectedHttpActionDescriptor(controllerDescriptor, typeof(AttributeApiExplorerValuesController).GetMethod("Action"));
             var actions = new ReflectedHttpActionDescriptor[] { action };
 
-            var routeCollection = new HttpRouteCollection();
-            routeCollection.Add("testroute", new HttpDirectRoute(routeTemplate, actions));
+            var routeCollection = new HttpSubRouteCollection();
+            routeCollection.Add("testroute", HttpRouteBuilder.BuildDirectRoute(routeTemplate, 0, actions));
 
             RouteCollectionRoute route = new RouteCollectionRoute();
             route.EnsureInitialized(() => routeCollection);

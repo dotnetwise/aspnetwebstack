@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Http.Controllers;
 using System.Web.Http.Dispatcher;
 using System.Web.Http.Routing;
 using Microsoft.TestCommon;
@@ -24,7 +25,7 @@ namespace System.Web.Http
         [Fact]
         public void DefaultConstructor()
         {
-            Assert.NotNull(new HttpServer());
+            Assert.DoesNotThrow(() => new HttpServer());
         }
 
         [Fact]
@@ -288,6 +289,104 @@ namespace System.Web.Http
             // Assert
             Assert.Equal(exception.Response.StatusCode, response.StatusCode);
             Assert.Equal(exception.Response.ReasonPhrase, response.ReasonPhrase);
+        }
+
+        [Fact]
+        public void HttpServerAddsDefaultRequestContext()
+        {
+            // Arrange
+            HttpServer server = new HttpServer();
+            var handler = new ThrowIfNoContext();
+
+            server.Configuration.MessageHandlers.Add(handler);
+            server.Configuration.MapHttpAttributeRoutes();
+            server.Configuration.EnsureInitialized();
+
+            var invoker = new HttpMessageInvoker(server);
+
+            var request = new HttpRequestMessage(HttpMethod.Get, "http://localhost/Customers");
+
+            // Act
+            var response = invoker.SendAsync(request, CancellationToken.None).Result;
+
+            // Assert
+            response.EnsureSuccessStatusCode();
+            Assert.True(handler.ContextFound);
+        }
+
+        [Fact]
+        public void HttpServerDoesNotReplaceOriginalRequestContext()
+        {
+            // Arrange
+            HttpServer server = new HttpServer();
+            var handler = new ThrowIfNoContext();
+
+            server.Configuration.MessageHandlers.Add(handler);
+            server.Configuration.MapHttpAttributeRoutes();
+            server.Configuration.EnsureInitialized();
+
+            HttpMessageInvoker invoker = new HttpMessageInvoker(server);
+
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://localhost/Customers");
+
+            HttpRequestContext context = new HttpRequestContext();
+
+            request.SetRequestContext(context);
+
+            // Act
+            var response = invoker.SendAsync(request, CancellationToken.None).Result;
+
+            // Assert
+            response.EnsureSuccessStatusCode();
+            Assert.True(handler.ContextFound);
+            Assert.Equal(context, response.RequestMessage.GetRequestContext());
+        }
+
+        private class ThrowIfNoContext : DelegatingHandler
+        {
+            public bool ContextFound { get; set; }
+
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                HttpRequestContext incomingContext = request.GetRequestContext();
+
+                if (incomingContext == null)
+                {
+                    throw new InvalidOperationException("context missing");
+                }
+
+                ContextFound = true;
+
+                Task<HttpResponseMessage> result = base.SendAsync(request, cancellationToken);
+
+                HttpRequestContext outgoingContext = result.Result.RequestMessage.GetRequestContext();
+
+                if (outgoingContext != incomingContext)
+                {
+                    throw new InvalidOperationException("context mismatch");
+                }
+
+                return result;
+            }
+        }
+
+        public class RequestHasContextController : ApiController
+        {
+            [Route("Customers")]
+            public IHttpActionResult Get()
+            {
+                if (RequestContext == null)
+                {
+                    return InternalServerError();
+                }
+
+                if (Request.GetRequestContext() == null)
+                {
+                    return BadRequest();
+                }
+
+                return Ok();
+            }
         }
 
         private class ThrowingMessageHandler : DelegatingHandler

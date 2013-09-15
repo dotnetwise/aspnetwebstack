@@ -123,6 +123,8 @@
     <Compile Include="..\Common\Routing\HttpRouteParser.cs">
       <Link>Routing\RouteParsing\HttpRouteParser.cs</Link>
     </Compile>
+    <Compile Include="ActionMethodSelectorBase.cs" />
+    <Compile Include="ControllerDescriptorExtensions.cs" />
     <Compile Include="Routing\RouteParsing\ParsedRoute.cs" />
     <Compile Include="..\Common\Routing\PathContentSegment.cs">
       <Link>Routing\RouteParsing\PathContentSegment.cs</Link>
@@ -166,8 +168,7 @@
     <Compile Include="Filters\IAuthenticationFilter.cs" />
     <Compile Include="Filters\IOverrideFilter.cs" />
     <Compile Include="Html5DateRenderingMode.cs" />
-    <Compile Include="HttpVerbAttribute.cs" />
-    <Compile Include="HttpRouteAttribute.cs" />
+    <Compile Include="RouteAttribute.cs" />
     <Compile Include="MembershipPasswordAttributeAdapter.cs" />
     <Compile Include="CompareAttribute.cs" />
     <Compile Include="ChildActionValueProvider.cs" />
@@ -191,8 +192,7 @@
     <Compile Include="RouteAreaAttribute.cs" />
     <Compile Include="Routing\AttributeRoutingMapper.cs" />
     <Compile Include="Routing\DirectRouteExtensions.cs" />
-    <Compile Include="HttpVerbsValidator.cs" />
-    <Compile Include="Routing\IDirectRouteInfoProvider.cs" />
+    <Compile Include="Routing\IRouteInfoProvider.cs" />
     <Compile Include="Routing\RouteBuilder.cs" />
     <Compile Include="Routing\IInlineConstraintResolver.cs" />
     <Compile Include="Routing\RouteCollectionAttributeRoutingExtensions.cs" />

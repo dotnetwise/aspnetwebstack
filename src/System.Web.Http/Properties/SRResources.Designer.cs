@@ -646,6 +646,24 @@ namespace System.Web.Http.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The request must have a request context..
+        /// </summary>
+        internal static string Request_RequestContextMustNotBeNull {
+            get {
+                return ResourceManager.GetString("Request_RequestContextMustNotBeNull", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The request context property on the request must be null or match ApiController.RequestContext..
+        /// </summary>
+        internal static string RequestContextConflict {
+            get {
+                return ResourceManager.GetString("RequestContextConflict", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The property &apos;Request&apos; on &apos;{0}&apos; is null. The property must be initialized with a non-null value..
         /// </summary>
         internal static string RequestIsNull {
@@ -777,15 +795,6 @@ namespace System.Web.Http.Properties {
         internal static string RouteCollection_NameNotFound {
             get {
                 return ResourceManager.GetString("RouteCollection_NameNotFound", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to ServicesContainer must have an IHostPrincipalService..
-        /// </summary>
-        internal static string ServicesContainerIHostPrincipalServiceRequired {
-            get {
-                return ResourceManager.GetString("ServicesContainerIHostPrincipalServiceRequired", resourceCulture);
             }
         }
         

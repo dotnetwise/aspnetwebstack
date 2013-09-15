@@ -228,38 +228,43 @@ namespace System.Web.Routing
 
         private class SimpleRoutingController : Controller
         {
-            [HttpGet("getme")]
+            [Route("getme")]
+            [HttpGet]
             public ActionResult GetMe()
             {
                 throw new NotImplementedException();
             }
 
-            [HttpPost("postme")]
+            [HttpPost]
+            [Route("postme")]
             public ActionResult PostMe()
             {
                 throw new NotImplementedException();
             }
 
-            [HttpRoute("routeme")]
+            [Route("routeme")]
             public ActionResult RouteMe()
             {
                 throw new NotImplementedException();
             }
 
-            [AcceptVerbs(HttpVerbs.Get | HttpVerbs.Post, RouteTemplate = "getorpostme")]
+            [AcceptVerbs(HttpVerbs.Get | HttpVerbs.Post)]
+            [Route("getorpostme")]
             public ActionResult GetOrPostMe()
             {
                 throw new NotImplementedException();
             }
-
-            [HttpGet("once")]
-            [HttpGet("twice")]
+            
+            [HttpGet]
+            [Route("once")]
+            [Route("twice")]
             public ActionResult FoolMe()
             {
                 throw new NotImplementedException("Shame on you!");
             }
 
-            [HttpGet("i/{have}/{id:int}/{defaultsto=VAL}/{name?}")]
+            [HttpGet]
+            [Route("i/{have}/{id:int}/{defaultsto=VAL}/{name?}")]
             public ActionResult Parameterized(string have, int id, string optional)
             {
                 throw new NotImplementedException();
@@ -269,7 +274,8 @@ namespace System.Web.Routing
         [RoutePrefix("prefpref")]
         private class PrefixedController : Controller
         {
-            [HttpGet("getme")]
+            [HttpGet]
+            [Route("getme")]
             public ActionResult GetMe()
             {
                 throw new NotImplementedException();
@@ -284,7 +290,8 @@ namespace System.Web.Routing
         [RouteArea("PugetSound", AreaPrefix = "puget-sound")]
         private class PugetSoundController : Controller
         {
-            [HttpGet("getme")]
+            [HttpGet]
+            [Route("getme")]
             public ActionResult GetMe()
             {
                 throw new NotImplementedException();
@@ -300,7 +307,8 @@ namespace System.Web.Routing
         [RoutePrefix("prefpref")]
         private class PrefixedPugetSoundController : Controller
         {
-            [HttpGet("getme")]
+            [HttpGet]
+            [Route("getme")]
             public ActionResult GetMe()
             {
                 throw new NotImplementedException();
@@ -315,7 +323,8 @@ namespace System.Web.Routing
         [RoutePrefix("/pref")]
         private class Bad1Controller : Controller
         {
-            [HttpGet("getme")]
+            [HttpGet]
+            [Route("getme")]
             public ActionResult GetMe()
             {
                 throw new NotImplementedException();
@@ -325,7 +334,8 @@ namespace System.Web.Routing
         [RoutePrefix("pref/")]
         private class Bad2Controller : Controller
         {
-            [HttpGet("getme")]
+            [HttpGet]
+            [Route("getme")]
             public ActionResult GetMe()
             {
                 throw new NotImplementedException();
@@ -334,7 +344,8 @@ namespace System.Web.Routing
 
         private class Bad3Controller : Controller
         {
-            [HttpGet("/getme")]
+            [HttpGet]
+            [Route("/getme")]
             public ActionResult GetMe()
             {
                 throw new NotImplementedException();
@@ -343,7 +354,8 @@ namespace System.Web.Routing
 
         private class Bad4Controller : Controller
         {
-            [HttpGet("getme/")]
+            [HttpGet]
+            [Route("getme/")]
             public ActionResult GetMe()
             {
                 throw new NotImplementedException();
@@ -362,7 +374,8 @@ namespace System.Web.Routing
 
         private class FruitConstraintController : Controller
         {
-            [HttpGet("fruits/{apple:fruit}")]
+            [HttpGet]
+            [Route("fruits/{apple:fruit}")]
             public ActionResult Eat(string apple)
             {
                 throw new NotImplementedException();

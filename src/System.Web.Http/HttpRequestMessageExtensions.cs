@@ -45,6 +45,11 @@ namespace System.Net.Http
                 return requestContext.Configuration;
             }
 
+            return request.LegacyGetConfiguration();
+        }
+
+        internal static HttpConfiguration LegacyGetConfiguration(this HttpRequestMessage request)
+        {
             return request.GetProperty<HttpConfiguration>(HttpPropertyKeys.HttpConfigurationKey);
         }
 
@@ -179,6 +184,11 @@ namespace System.Net.Http
                 return requestContext.ClientCertificate;
             }
 
+            return request.LegacyGetClientCertificate();
+        }
+
+        internal static X509Certificate2 LegacyGetClientCertificate(this HttpRequestMessage request)
+        {
             X509Certificate2 result = null;
 
             if (!request.Properties.TryGetValue(HttpPropertyKeys.ClientCertificateKey, out result))
@@ -219,6 +229,11 @@ namespace System.Net.Http
                 return requestContext.RouteData;
             }
 
+            return request.LegacyGetRouteData();
+        }
+
+        internal static IHttpRouteData LegacyGetRouteData(this HttpRequestMessage request)
+        {
             return request.GetProperty<IHttpRouteData>(HttpPropertyKeys.HttpRouteDataKey);
         }
 
@@ -819,14 +834,12 @@ namespace System.Net.Http
 
             HttpRequestContext requestContext = GetRequestContext(request);
 
-            UrlHelper url = null;
-
             if (requestContext != null)
             {
-                url = requestContext.Url;
+                return requestContext.Url;
             }
 
-            return url ?? new UrlHelper(request);
+            return new UrlHelper(request);
         }
 
         /// <summary>
@@ -848,6 +861,11 @@ namespace System.Net.Http
                 return requestContext.IsLocal;
             }
 
+            return request.LegacyIsLocal();
+        }
+
+        internal static bool LegacyIsLocal(this HttpRequestMessage request)
+        {
             Lazy<bool> isLocal = request.GetProperty<Lazy<bool>>(HttpPropertyKeys.IsLocalKey);
 
             return isLocal == null ? false : isLocal.Value;
@@ -887,6 +905,11 @@ namespace System.Net.Http
                 return requestContext.IncludeErrorDetail;
             }
 
+            return request.LegacyShouldIncludeErrorDetail();
+        }
+
+        internal static bool LegacyShouldIncludeErrorDetail(this HttpRequestMessage request)
+        {
             HttpConfiguration configuration = request.GetConfiguration();
             IncludeErrorDetailPolicy includeErrorDetailPolicy = IncludeErrorDetailPolicy.Default;
             if (configuration != null)

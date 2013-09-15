@@ -75,8 +75,17 @@ namespace System.Web.Http.OData.Formatter
             _payloadKinds = payloadKinds;
 
             // Maxing out the received message size as we depend on the hosting layer to enforce this limit.
-            MessageReaderQuotas = new ODataMessageQuotas { MaxReceivedMessageSize = Int64.MaxValue };
-            MessageWriterQuotas = new ODataMessageQuotas { MaxReceivedMessageSize = Int64.MaxValue };
+            MessageWriterSettings = new ODataMessageWriterSettings
+            {
+                Indent = true,
+                DisableMessageStreamDisposal = true,
+                MessageQuotas = new ODataMessageQuotas { MaxReceivedMessageSize = Int64.MaxValue }
+            };
+            MessageReaderSettings = new ODataMessageReaderSettings
+            {
+                DisableMessageStreamDisposal = true,
+                MessageQuotas = new ODataMessageQuotas { MaxReceivedMessageSize = Int64.MaxValue },
+            };
 
             _version = DefaultODataVersion;
         }
@@ -109,8 +118,8 @@ namespace System.Web.Http.OData.Formatter
             _serializerProvider = formatter._serializerProvider;
             _deserializerProvider = formatter._deserializerProvider;
             _payloadKinds = formatter._payloadKinds;
-            MessageReaderQuotas = formatter.MessageReaderQuotas;
-            MessageWriterQuotas = formatter.MessageWriterQuotas;
+            MessageWriterSettings = formatter.MessageWriterSettings;
+            MessageReaderSettings = formatter.MessageReaderSettings;
 
             // Parameter 2: version
             _version = version;
@@ -142,14 +151,36 @@ namespace System.Web.Http.OData.Formatter
         }
 
         /// <summary>
-        /// Gets or sets the <see cref="ODataMessageQuotas"/> that this formatter uses on the read side.
+        /// Gets the <see cref="ODataMessageQuotas"/> that this formatter uses on the read side.
         /// </summary>
-        public ODataMessageQuotas MessageReaderQuotas { get; private set; }
+        public ODataMessageQuotas MessageReaderQuotas
+        {
+            get
+            {
+                return MessageReaderSettings.MessageQuotas;
+            }
+        }
 
         /// <summary>
-        /// Gets or sets the <see cref="ODataMessageQuotas"/> that this formatter uses on the write side.
+        /// Gets the <see cref="ODataMessageQuotas"/> that this formatter uses on the write side.
         /// </summary>
-        public ODataMessageQuotas MessageWriterQuotas { get; private set; }
+        public ODataMessageQuotas MessageWriterQuotas
+        {
+            get
+            {
+                return MessageWriterSettings.MessageQuotas;
+            }
+        }
+
+        /// <summary>
+        /// Gets the <see cref="ODataMessageWriterSettings"/> to be used while writing responses.
+        /// </summary>
+        public ODataMessageWriterSettings MessageWriterSettings { get; private set; }
+
+        /// <summary>
+        /// Gets the <see cref="ODataMessageReaderSettings"/> to be used while reading requests.
+        /// </summary>
+        public ODataMessageReaderSettings MessageReaderSettings { get; private set; }
 
         /// <summary>
         /// The request message associated with the per-request formatter instance.
@@ -310,18 +341,13 @@ namespace System.Web.Http.OData.Formatter
                     throw Error.Argument("type", SRResources.FormatterReadIsNotSupportedForType, type.FullName, GetType().FullName);
                 }
 
-                ODataMessageReader oDataMessageReader = null;
-                ODataMessageReaderSettings oDataReaderSettings = new ODataMessageReaderSettings
-                {
-                    DisableMessageStreamDisposal = true,
-                    MessageQuotas = MessageReaderQuotas,
-                    BaseUri = GetBaseAddress(Request)
-                };
-
                 try
                 {
+                    ODataMessageReaderSettings oDataReaderSettings = new ODataMessageReaderSettings(MessageReaderSettings);
+                    oDataReaderSettings.BaseUri = GetBaseAddress(Request);
+
                     IODataRequestMessage oDataRequestMessage = new ODataMessageWrapper(readStream, contentHeaders, Request.GetODataContentIdMapping());
-                    oDataMessageReader = new ODataMessageReader(oDataRequestMessage, oDataReaderSettings, model);
+                    ODataMessageReader oDataMessageReader = new ODataMessageReader(oDataRequestMessage, oDataReaderSettings, model);
 
                     Request.RegisterForDispose(oDataMessageReader);
                     ODataPath path = Request.GetODataPath();
@@ -394,8 +420,7 @@ namespace System.Web.Http.OData.Formatter
 
             ODataSerializer serializer = GetSerializer(type, value, model, _serializerProvider);
 
-            UrlHelper urlHelper = Request.GetUrlHelper();
-            Contract.Assert(urlHelper != null);
+            UrlHelper urlHelper = Request.GetUrlHelper() ?? new UrlHelper(Request);
 
             ODataPath path = Request.GetODataPath();
             IEdmEntitySet targetEntitySet = path == null ? null : path.EntitySet;
@@ -409,13 +434,10 @@ namespace System.Web.Http.OData.Formatter
 
             IODataResponseMessage responseMessage = new ODataMessageWrapper(writeStream, content.Headers);
 
-            ODataMessageWriterSettings writerSettings = new ODataMessageWriterSettings()
+            ODataMessageWriterSettings writerSettings = new ODataMessageWriterSettings(MessageWriterSettings)
             {
                 BaseUri = GetBaseAddress(Request),
                 Version = _version,
-                Indent = true,
-                DisableMessageStreamDisposal = true,
-                MessageQuotas = MessageWriterQuotas
             };
 
             // The MetadataDocumentUri is never required for errors. Additionally, it sometimes won't be available
@@ -509,14 +531,15 @@ namespace System.Web.Http.OData.Formatter
         {
             expectedPayloadType = GetExpectedPayloadType(type, path, model);
 
-            if (expectedPayloadType != null)
+            // Get the deserializer using the CLR type first from the deserializer provider.
+            ODataDeserializer deserializer = deserializerProvider.GetODataDeserializer(model, type, Request);
+            if (deserializer == null && expectedPayloadType != null)
             {
-                return deserializerProvider.GetEdmTypeDeserializer(expectedPayloadType);
+                // we are in typeless mode, get the deserializer using the edm type from the path.
+                deserializer = deserializerProvider.GetEdmTypeDeserializer(expectedPayloadType);
             }
-            else
-            {
-                return deserializerProvider.GetODataDeserializer(model, type, Request);
-            }
+
+            return deserializer;
         }
 
         private ODataSerializer GetSerializer(Type type, object value, IEdmModel model, ODataSerializerProvider serializerProvider)
@@ -629,8 +652,7 @@ namespace System.Web.Http.OData.Formatter
 
         private static Uri GetBaseAddress(HttpRequestMessage request)
         {
-            UrlHelper urlHelper = request.GetUrlHelper();
-            Contract.Assert(urlHelper != null);
+            UrlHelper urlHelper = request.GetUrlHelper() ?? new UrlHelper(request);
 
             string baseAddress = urlHelper.ODataLink();
             if (baseAddress == null)

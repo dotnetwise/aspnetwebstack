@@ -44,53 +44,63 @@ namespace System.Web.Mvc.Routing
 
         internal List<RouteEntry> MapMvcAttributeRoutes(ReflectedAsyncControllerDescriptor controllerDescriptor)
         {
-            string prefix = GetPrefixFrom(controllerDescriptor);
-            ValidatePrefixTemplate(prefix, controllerDescriptor);            
+            string prefix = controllerDescriptor.GetPrefixFrom();
+            ValidatePrefixTemplate(prefix, controllerDescriptor);
 
-            RouteAreaAttribute area = GetAreaFrom(controllerDescriptor);
-            string areaName = GetAreaName(controllerDescriptor, area);
+            RouteAreaAttribute area = controllerDescriptor.GetAreaFrom();
+            string areaName = controllerDescriptor.GetAreaName(area);
             string areaPrefix = area != null ? area.AreaPrefix ?? area.AreaName : null;
+
             ValidateAreaPrefixTemplate(areaPrefix, areaName, controllerDescriptor);
 
             string controllerName = controllerDescriptor.ControllerName;
 
             AsyncActionMethodSelector actionSelector = controllerDescriptor.Selector;
-            IEnumerable<MethodInfo> actionMethodsInfo = actionSelector.AliasedMethods
-                                                                      .Concat(actionSelector.NonAliasedMethods.SelectMany(x => x))
-                                                                      .Where(m => m.DeclaringType == controllerDescriptor.ControllerType);
-
-            if (actionSelector.AllowLegacyAsyncActions)
-            {
-                // if the ActionAsync / ActionCompleted pattern is used, we need to remove the "Completed" methods
-                // and not look up routing attributes on them
-                actionMethodsInfo =
-                    actionMethodsInfo.Where(m => !m.Name.EndsWith("Completed", StringComparison.OrdinalIgnoreCase));
-            }
+            IEnumerable<MethodInfo> actionMethodsInfo = actionSelector.DirectRouteMethods;
 
             List<RouteEntry> routeEntries = new List<RouteEntry>();
 
             foreach (var method in actionMethodsInfo)
             {
-                string actionName = GetActionName(method, actionSelector.AllowLegacyAsyncActions);
-                IEnumerable<IDirectRouteInfoProvider> routeAttributes = GetRouteAttributes(method);
+                string actionName = actionSelector.GetActionName(method);
+                IEnumerable<IRouteInfoProvider> routeAttributes = GetRouteAttributes(method, controllerDescriptor.ControllerType);
+
+                IEnumerable<string> verbs = GetActionVerbs(method);
 
                 foreach (var routeAttribute in routeAttributes)
                 {
-                    ValidateTemplate(routeAttribute.RouteTemplate, actionName, controllerDescriptor);
+                    ValidateTemplate(routeAttribute.Template, actionName, controllerDescriptor);
 
-                    string template = CombinePrefixAndAreaWithTemplate(areaPrefix, prefix, routeAttribute.RouteTemplate);
-                    Route route = _routeBuilder.BuildDirectRoute(template, routeAttribute.Verbs, controllerName,
+                    string template = CombinePrefixAndAreaWithTemplate(areaPrefix, prefix, routeAttribute.Template);
+                    Route route = _routeBuilder.BuildDirectRoute(template, verbs, controllerName,
                                                                     actionName, method, areaName);
                     RouteEntry entry = new RouteEntry
                     {
-                        Name = routeAttribute.RouteName,
+                        Name = routeAttribute.Name,
                         Route = route,
-                        RouteTemplate = template,
-                        ParsedRoute = RouteParser.Parse(route.Url),
-                        Order = routeAttribute.RouteOrder                        
+                        Template = template,
+                        ParsedRoute = RouteParser.Parse(route.Url), 
+                        HasVerbs = verbs.Any()
                     };
                     routeEntries.Add(entry);                    
                 }
+            }
+
+            // Check for controller-level routes. 
+            IEnumerable<IRouteInfoProvider> controllerRouteAttributes = controllerDescriptor.GetDirectRoutes();
+            foreach (var routeAttribute in controllerRouteAttributes)
+            {               
+                string template = CombinePrefixAndAreaWithTemplate(areaPrefix, prefix, routeAttribute.Template);
+
+                Route route = _routeBuilder.BuildDirectRoute(template, controllerDescriptor);
+                RouteEntry entry = new RouteEntry
+                {
+                    Name = routeAttribute.Name,
+                    Route = route,
+                    Template = template,
+                    ParsedRoute = RouteParser.Parse(route.Url)
+                };
+                routeEntries.Add(entry);     
             }
 
             return routeEntries;
@@ -126,60 +136,20 @@ namespace System.Web.Mvc.Routing
             }
         }
 
-        private static IEnumerable<IDirectRouteInfoProvider> GetRouteAttributes(MethodInfo methodInfo)
+        private static IEnumerable<IRouteInfoProvider> GetRouteAttributes(MethodInfo methodInfo, Type controllerType)
         {
+            // Skip Route attributes on inherited actions.
+            if (methodInfo.DeclaringType != controllerType)
+            {
+                return Enumerable.Empty<IRouteInfoProvider>();
+            }
+
             // We do not want to cache this as these attributes are only being looked up during
             // application's init time, so there will be no perf gain, and we will end up
             // storing that cache for no reason
             return methodInfo.GetCustomAttributes(inherit: false)
-              .OfType<IDirectRouteInfoProvider>()
-              .Where(attr => attr.RouteTemplate != null)
-              .ToArray();
-        }
-
-        private static string GetAreaName(ReflectedAsyncControllerDescriptor controllerDescriptor, RouteAreaAttribute area)
-        {
-            if (area == null)
-            {
-                return null;
-            }
-
-            if (area.AreaName != null)
-            {
-                return area.AreaName;
-            }
-            if (controllerDescriptor.ControllerType.Namespace != null)
-            {
-                return controllerDescriptor.ControllerType.Namespace.Split('.').Last();
-            }
-
-            throw Error.InvalidOperation(MvcResources.AttributeRouting_CouldNotInferAreaNameFromMissingNamespace, controllerDescriptor.ControllerName);
-        }
-
-        private static RouteAreaAttribute GetAreaFrom(ReflectedAsyncControllerDescriptor controllerDescriptor)
-        {
-            RouteAreaAttribute areaAttribute =
-                controllerDescriptor.GetCustomAttributes(typeof(RouteAreaAttribute), true)
-                                    .Cast<RouteAreaAttribute>()
-                                    .FirstOrDefault();
-            return areaAttribute;
-        }
-
-        private static string GetPrefixFrom(ReflectedAsyncControllerDescriptor controllerDescriptor)
-        {
-            // this only happens once per controller type, for the lifetime of the application,
-            // so we do not need to cache the results
-            object[] routePrefixAttributes = controllerDescriptor.GetCustomAttributes(typeof(RoutePrefixAttribute), inherit: false);
-            if (routePrefixAttributes.Length > 0)
-            {
-                RoutePrefixAttribute routePrefixAttribute = routePrefixAttributes[0] as RoutePrefixAttribute;
-                if (routePrefixAttribute != null)
-                {
-                    return routePrefixAttribute.Prefix;
-                }
-            }
-
-            return null;
+              .OfType<IRouteInfoProvider>()
+              .Where(attr => attr.Template != null);
         }
 
         internal static string CombinePrefixAndAreaWithTemplate(string areaPrefix, string prefix, string template)
@@ -225,26 +195,41 @@ namespace System.Web.Mvc.Routing
             return templateBuilder.ToString();
         }
 
-        private static string GetActionName(MethodInfo method, bool allowLegacyAsyncActions)
+        // return list of verbs on the method.
+        private static IEnumerable<string> GetActionVerbs(MethodInfo method)
         {
-            // Check for ActionName attribute
-            object[] nameAttributes = method.GetCustomAttributes(typeof(ActionNameAttribute), inherit: true);
-            if (nameAttributes.Length > 0)
+            var list = new List<string>();
+
+            IEnumerable<AcceptVerbsAttribute> verbAttributes = method.GetCustomAttributes<AcceptVerbsAttribute>();
+            foreach (AcceptVerbsAttribute verbAttribute in verbAttributes)
             {
-                ActionNameAttribute nameAttribute = nameAttributes[0] as ActionNameAttribute;
-                if (nameAttribute != null)
-                {
-                    return nameAttribute.Name;
+                foreach (var verb in verbAttribute.Verbs)
+                {                    
+                    list.Add(verb);
                 }
             }
+            AddActionVerbForAttribute<HttpDeleteAttribute>(method, "DELETE", list);
+            AddActionVerbForAttribute<HttpGetAttribute>(method, "GET", list);
+            AddActionVerbForAttribute<HttpHeadAttribute>(method, "HEAD", list);
+            AddActionVerbForAttribute<HttpOptionsAttribute>(method, "OPTIONS", list);
+            AddActionVerbForAttribute<HttpPatchAttribute>(method, "PATCH", list);
+            AddActionVerbForAttribute<HttpPostAttribute>(method, "POST", list);
+            AddActionVerbForAttribute<HttpPutAttribute>(method, "PUT", list);
+            return list;
+        }
 
-            const string AsyncMethodSuffix = "Async";
-            if (allowLegacyAsyncActions && method.Name.EndsWith(AsyncMethodSuffix, StringComparison.OrdinalIgnoreCase))
+        private static void AddActionVerbForAttribute<T>(MethodInfo method, string verb, List<string> verbs)
+            where T : Attribute
+        {
+            if (!verbs.Any(v => String.Equals(v, verb, StringComparison.OrdinalIgnoreCase)))
             {
-                return method.Name.Substring(0, method.Name.Length - AsyncMethodSuffix.Length);
-            }
+                T attribute = method.GetCustomAttribute<T>();
 
-            return method.Name;
+                if (attribute != null)
+                {
+                    verbs.Add(verb);
+                }
+            }
         }
     }
 }

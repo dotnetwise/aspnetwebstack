@@ -52,8 +52,9 @@
     <Compile Include="Html\Test\ValueExtensionsTest.cs" />
     <Compile Include="Razor\Test\MvcCSharpRazorCodeGeneratorTest.cs" />
     <Compile Include="Routing\AttributeRoutingMapperTest.cs" />
+    <Compile Include="Routing\AttributeRoutingTest.cs" />
     <Compile Include="Routing\DirectRouteTestHelpers.cs" />
-    <Compile Include="Routing\HttpRouteAttributeTests.cs" />
+    <Compile Include="Routing\RouteAttributeTests.cs" />
     <Compile Include="..\Common\Routing\RouteConstraintsTests.cs">
       <Link>Routing\RouteConstraintsTests.cs</Link>
     </Compile>
@@ -92,6 +93,7 @@
     <Compile Include="Test\BuildManagerCompiledViewTest.cs" />
     <Compile Include="Test\BuildManagerViewEngineTest.cs" />
     <Compile Include="Test\CompareAttributeTest.cs" />
+    <Compile Include="Test\CompareAttributeAdapterTest.cs" />
     <Compile Include="Test\DataAnnotationsModelMetadataProviderTestBase.cs" />
     <Compile Include="Test\DataTypeUtilTest.cs" />
     <Compile Include="Test\FilterInfoTest.cs" />
@@ -100,7 +102,6 @@
     <Compile Include="Test\HttpHeadAttributeTest.cs" />
     <Compile Include="Test\HttpOptionsAttributeTest.cs" />
     <Compile Include="Test\HttpPatchAttributeTest.cs" />
-    <Compile Include="Test\HttpVerbsValidatorTests.cs" />
     <Compile Include="Test\MockableUnvalidatedRequestValues.cs" />
     <Compile Include="Test\DescriptorUtilTest.cs" />
     <Compile Include="Razor\Test\MvcVBRazorCodeParserTest.cs" />
