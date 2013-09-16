@@ -581,8 +581,16 @@ namespace WebMatrix.WebData
             throw new NotSupportedException();
         }
 
-        private static bool SetPassword(IDatabase db, Guid userId, string newPassword)
+        private static bool SetPassword(IDatabase db, Guid userId, string newPassword, SimpleMembershipProvider provider)
         {
+            if (provider._previousProvider != null)
+            {
+                var user = provider._previousProvider.GetUser(userId, false);
+                if (user == null)
+                    return false;
+                var oldPassword = provider._previousProvider.ResetPassword(user.UserName, null);
+                return provider._previousProvider.ChangePassword(user.UserName, oldPassword, newPassword);
+            }
             string hashedPassword = PasswordCrypto.Instance.HashPassword(newPassword);
             if (hashedPassword.Length > 128)
             {
@@ -597,6 +605,10 @@ namespace WebMatrix.WebData
         // Inherited from MembershipProvider ==> Forwarded to previous provider if this provider hasn't been initialized
         public override bool ChangePassword(string username, string oldPassword, string newPassword)
         {
+            if (_previousProvider != null)
+            {
+                return _previousProvider.ChangePassword(username, oldPassword, newPassword);
+            }
             if (!InitializeCalled)
             {
                 return PreviousProvider.ChangePassword(username, oldPassword, newPassword);
@@ -630,13 +642,17 @@ namespace WebMatrix.WebData
                     return false;
                 }
 
-                return SetPassword(db, userId, newPassword);
+                return SetPassword(db, userId, newPassword, this);
             }
         }
 
         // Inherited from MembershipProvider ==> Forwarded to previous provider if this provider hasn't been initialized
         public override string ResetPassword(string username, string answer)
         {
+            if (_previousProvider != null)
+            {
+                return _previousProvider.ResetPassword(username, answer);
+            }
             if (!InitializeCalled)
             {
                 return PreviousProvider.ResetPassword(username, answer);
@@ -1002,7 +1018,7 @@ namespace WebMatrix.WebData
                 Guid? userId = db.QueryValue(@"SELECT UserId FROM " + MembershipTableName + " WHERE (PasswordVerificationToken = @0 AND PasswordVerificationTokenExpirationDate > @1)", token, DateTime.UtcNow);
                 if (userId != null)
                 {
-                    bool success = SetPassword(db, userId.Value, newPassword);
+                    bool success = SetPassword(db, userId.Value, newPassword, this);
                     if (success)
                     {
                         // Clear the Token on success
