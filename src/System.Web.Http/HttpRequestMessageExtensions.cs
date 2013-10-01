@@ -248,6 +248,7 @@ namespace System.Net.Http
             {
                 throw Error.ArgumentNull("request");
             }
+
             if (routeData == null)
             {
                 throw Error.ArgumentNull("routeData");
@@ -261,16 +262,6 @@ namespace System.Net.Http
             }
 
             request.Properties[HttpPropertyKeys.HttpRouteDataKey] = routeData;
-        }
-
-        internal static bool TryGetRouteData(this HttpRequestMessage request, out IHttpRouteData routeData)
-        {
-            if (request == null)
-            {
-                throw Error.ArgumentNull("request");
-            }
-
-            return request.Properties.TryGetValue<IHttpRouteData>(HttpPropertyKeys.HttpRouteDataKey, out routeData);
         }
 
         /// <summary>
