@@ -496,6 +496,10 @@ namespace WebMatrix.WebData
         // Inherited from MembershipProvider ==> Forwarded to previous provider if this provider hasn't been initialized
         public override MembershipUser CreateUser(string username, string password, string email, string passwordQuestion, string passwordAnswer, bool isApproved, object providerUserKey, out MembershipCreateStatus status)
         {
+            if (_previousProvider != null)
+            {
+                return _previousProvider.CreateUser(username, password, email, passwordQuestion, passwordAnswer, isApproved, providerUserKey, out status);
+            }
             if (!InitializeCalled)
             {
                 return PreviousProvider.CreateUser(username, password, email, passwordQuestion, passwordAnswer, isApproved, providerUserKey, out status);
