@@ -12,9 +12,6 @@
     <DefineConstants>$(DefineConstants);ASPNETWEBPAGES</DefineConstants>
     <NoWarn>1591</NoWarn>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
-    <NoWarn>1591,1709</NoWarn>
-  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
@@ -49,7 +46,7 @@
     <Compile Include="Json.cs" />
     <Compile Include="ObjectInfo.cs" />
     <Compile Include="ObjectVisitor.cs" />
-    <Compile Include="PassowrdCrypto.cs" />
+    <Compile Include="PasswordCrypto.cs" />
     <Compile Include="WebCache.cs" />
     <Compile Include="ServerInfo.cs" />
     <Compile Include="Resources\HelpersResources.Designer.cs">

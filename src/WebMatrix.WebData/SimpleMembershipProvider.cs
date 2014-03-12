@@ -423,7 +423,9 @@ namespace WebMatrix.WebData
                 MembershipCreateStatus status;
                 var user = _previousProvider.CreateUser(userName, password, userName + "@sb.com", null, null, !requireConfirmationToken, Guid.NewGuid(), out status);
                 if (status != MembershipCreateStatus.Success)
+                {
                     throw new MembershipCreateUserException(status);
+                }
 
                 string token = null;
                 object dbtoken = DBNull.Value;
@@ -444,16 +446,11 @@ namespace WebMatrix.WebData
             }
             else
             {
-
-
-
-
                 string hashedPassword = PasswordCrypto.Instance.HashPassword(password);
                 if (hashedPassword.Length > 128)
                 {
                     throw new MembershipCreateUserException(MembershipCreateStatus.InvalidPassword);
                 }
-
 
                 using (var db = ConnectToDatabase())
                 {
@@ -534,8 +531,13 @@ namespace WebMatrix.WebData
                     }
                     columnString.Append(",").Append(key);
                     if (updateRow)
+                    {
                         argsString.Append(",").Append(key).Append(" = @").Append(index++);
-                    else argsString.Append(",@").Append(index++);
+                    }
+                    else
+                    {
+                        argsString.Append(",@").Append(index++);
+                    }
                     object value = values[key];
                     if (value == null)
                     {
@@ -550,7 +552,10 @@ namespace WebMatrix.WebData
                 sb.Append("UPDATE ").Append(SafeUserTableName).Append("SET ").Append(UserNameColumn).Append(" = ").Append(argsString.ToString()).Append(" WHERE UserId = @").Append(argsArray.Count());
                 argsArray.Add(userId);
             }
-            else sb.Append("INSERT INTO ").Append(SafeUserTableName).Append(" (").Append(columnString.ToString()).Append(") VALUES (").Append(argsString.ToString()).Append(")");
+            else
+            {
+                sb.Append("INSERT INTO ").Append(SafeUserTableName).Append(" (").Append(columnString.ToString()).Append(") VALUES (").Append(argsString.ToString()).Append(")");
+            }
             var sql = sb.ToString();
             int rows = db.Execute(sql, argsArray.ToArray());
             if (rows != 1)
@@ -567,10 +572,14 @@ namespace WebMatrix.WebData
             using (var db = ConnectToDatabase())
             {
                 if (_previousProvider == null)
+                {
                     CreateUserRow(db, userName, values, false);
+                }
                 var result = CreateAccount(userName, password, requireConfirmation);
                 if (_previousProvider != null)
+                {
                     CreateUserRow(db, userName, values, true);
+                }
                 return result;
             }
         }
@@ -591,7 +600,9 @@ namespace WebMatrix.WebData
             {
                 var user = provider._previousProvider.GetUser(userId, false);
                 if (user == null)
+                {
                     return false;
+                }
                 var oldPassword = provider._previousProvider.ResetPassword(user.UserName, null);
                 return provider._previousProvider.ChangePassword(user.UserName, oldPassword, newPassword);
             }

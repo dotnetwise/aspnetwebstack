@@ -9,7 +9,7 @@
     <DocumentationFile>$(OutputPath)$(AssemblyName).xml</DocumentationFile>
     <RunCodeAnalysis>$(CodeAnalysis)</RunCodeAnalysis>
     <CodeAnalysisRuleSet>..\Strict.ruleset</CodeAnalysisRuleSet>
-    <DefineConstants>$(DefineConstants);ASPNETMVC</DefineConstants>
+    <DefineConstants>$(DefineConstants);ASPNETMVC;ASPNETWEBAPI</DefineConstants>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\</SolutionDir>
   </PropertyGroup>
   <ItemGroup>
@@ -43,6 +43,9 @@
     <Compile Include="..\CommonAssemblyInfo.cs">
       <Link>Properties\CommonAssemblyInfo.cs</Link>
     </Compile>
+    <Compile Include="..\Common\PropertyHelper.cs">
+      <Link>Common\PropertyHelper.cs</Link>
+    </Compile>
     <Compile Include="..\Common\TaskHelpers.cs">
       <Link>Common\TaskHelpers.cs</Link>
     </Compile>
@@ -55,6 +58,12 @@
     <Compile Include="..\Common\TypeExtensions.cs">
       <Link>Common\TypeExtensions.cs</Link>
     </Compile>
+    <Compile Include="Extensions\HttpConfigurationExtensions.cs" />
+    <Compile Include="Extensions\HttpErrorExtensions.cs" />
+    <Compile Include="Extensions\HttpRequestMessageExtensions.cs" />
+    <Compile Include="Extensions\HttpRequestMessageProperties.cs" />
+    <Compile Include="Extensions\HttpRouteCollectionExtensions.cs" />
+    <Compile Include="Extensions\UrlHelperExtensions.cs" />
     <Compile Include="OData\Batch\ODataBatchHandler.cs" />
     <Compile Include="OData\Batch\ODataBatchHttpRequestMessageExtensions.cs" />
     <Compile Include="OData\EdmModelExtensions.cs" />
@@ -104,8 +113,12 @@
     <Compile Include="OData\IEdmObject.cs" />
     <Compile Include="OData\IEdmStructuredObject.cs" />
     <Compile Include="OData\ODataRoutingAttribute.cs" />
+    <Compile Include="OData\ODataUntypedActionParameters.cs" />
     <Compile Include="OData\PerRequestContentNegotiator.cs" />
-    <Compile Include="OData\Query\Expressions\IDictionaryConvertible.cs" />
+    <Compile Include="OData\EnableQueryAttribute.cs" />
+    <Compile Include="OData\Query\Expressions\IdentityPropertyMapper.cs" />
+    <Compile Include="OData\Query\IPropertyMapper.cs" />
+    <Compile Include="OData\Query\ISelectExpandWrapper.cs" />
     <Compile Include="OData\Query\Expressions\NamedPropertyExpression.cs" />
     <Compile Include="OData\Query\Expressions\PropertyContainer.cs" />
     <Compile Include="OData\Query\Expressions\SelectExpandBinder.cs" />
@@ -180,6 +193,7 @@
     <Compile Include="OData\Routing\ODataSegmentKinds.cs" />
     <Compile Include="OData\Routing\KeyValuePathSegment.cs" />
     <Compile Include="OData\Routing\LinksPathSegment.cs" />
+    <Compile Include="OData\Routing\ODataValueProviderFactory.cs" />
     <Compile Include="OData\Routing\UnresolvedPathSegment.cs" />
     <Compile Include="OData\Routing\ValuePathSegment.cs" />
     <Compile Include="OData\Routing\PropertyAccessPathSegment.cs" />
@@ -238,7 +252,7 @@
     <Compile Include="OData\Builder\ComplexTypeConfigurationOfTComplexType.cs" />
     <Compile Include="OData\EntityInstanceContextOfTEntityType.cs" />
     <Compile Include="OData\EntityInstanceContext.cs" />
-    <Compile Include="OData\CompiledPropertyAccessor.cs" />
+    <Compile Include="OData\FastPropertyAccessor.cs" />
     <Compile Include="OData\PerRequestActionValueBinder.cs" />
     <Compile Include="OData\Formatter\Deserialization\ODataActionPayloadDeserializer.cs" />
     <Compile Include="OData\Formatter\Deserialization\ODataCollectionDeserializer.cs" />
@@ -295,7 +309,7 @@
     <Compile Include="OData\Formatter\EdmLibHelpers.cs" />
     <Compile Include="OData\Formatter\Serialization\ODataEntityReferenceLinkSerializer.cs" />
     <Compile Include="OData\Formatter\Serialization\ODataEdmTypeSerializer.cs" />
-    <Compile Include="HttpActionDescriptorExtensions.cs" />
+    <Compile Include="Extensions\HttpActionDescriptorExtensions.cs" />
     <Compile Include="OData\Routing\DefaultODataPathHandler.cs" />
     <Compile Include="OData\Routing\ODataPathSegment.cs" />
     <Compile Include="OData\TypedDelta.cs" />
@@ -318,9 +332,7 @@
     </Compile>
     <Compile Include="QueryableAttribute.cs" />
     <Compile Include="ODataUrlHelperExtensions.cs" />
-    <Compile Include="SingleResult.cs" />
-    <Compile Include="SingleResultOfT.cs" />
-    <Compile Include="TypeHelper.cs" />
+    <Compile Include="OData\TypeHelper.cs" />
     <Compile Include="OData\Query\Expressions\ClrCanonicalFunctions.cs" />
     <Compile Include="OData\Query\Expressions\FilterBinder.cs" />
     <Compile Include="OData\Builder\PropertySelectorVisitor.cs" />

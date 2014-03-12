@@ -90,19 +90,13 @@ namespace System.Web.Http.Controllers
         {
             private readonly HttpControllerDescriptor _controllerDescriptor;
 
-            // Includes action descriptors for actions with and without route attributes.
+            // Includes action descriptors for actionsByVerb with and without route attributes.
             private readonly CandidateAction[] _combinedCandidateActions;
 
-            // Includes action descriptors only for actions accessible via standard routing (without route attributes).
-            private readonly CandidateAction[] _standardCandidateActions;
+            private readonly IDictionary<HttpActionDescriptor, string[]> _actionParameterNames = new Dictionary<HttpActionDescriptor, string[]>();
 
-            private readonly IDictionary<ReflectedHttpActionDescriptor, string[]> _actionParameterNames = new Dictionary<ReflectedHttpActionDescriptor, string[]>();
-
-            // Includes action descriptors for actions with and without route attributes.
-            private readonly ILookup<string, ReflectedHttpActionDescriptor> _combinedActionNameMapping;
-
-            // Includes action descriptors only for actions accessible via standard routing (without route attributes).
-            private readonly ILookup<string, ReflectedHttpActionDescriptor> _standardActionNameMapping;
+            // Includes action descriptors for actionsByVerb with and without route attributes.
+            private readonly ILookup<string, HttpActionDescriptor> _combinedActionNameMapping;
 
             // Selection commonly looks up an action by verb.
             // Cache this mapping. These caches are completely optional and we still behave correctly if we cache miss.
@@ -111,9 +105,9 @@ namespace System.Web.Http.Controllers
             // - Beware that HttpMethod has a very slow hash function (it does case-insensitive string hashing). So don't use Dict.
             // - there are unbounded number of http methods, so make sure the cache doesn't grow indefinitely.
             // - we can build the cache at startup and don't need to continually add to it.
-            private readonly HttpMethod[] _cacheListVerbKinds = new HttpMethod[] { HttpMethod.Get, HttpMethod.Put, HttpMethod.Post };
+            private static readonly HttpMethod[] _cacheListVerbKinds = new HttpMethod[] { HttpMethod.Get, HttpMethod.Put, HttpMethod.Post };
 
-            private readonly CandidateAction[][] _cacheListVerbs;
+            private StandardActionSelectionCache _standardActions;
 
             public ActionSelectorCacheItem(HttpControllerDescriptor controllerDescriptor)
             {
@@ -144,41 +138,10 @@ namespace System.Web.Http.Controllers
                             .Select(binding => binding.Descriptor.Prefix ?? binding.Descriptor.ParameterName).ToArray());
                 }
 
-                if (controllerDescriptor.GetCustomAttributes<IHttpRouteInfoProvider>(inherit: false).Any())
-                {
-                    // The controller has an attribute route; no actions are accessible via standard routing.
-                    _standardCandidateActions = new CandidateAction[0];
-                }
-                else
-                {
-                    // The controller does not have an attribute route; some actions may be accessible via standard
-                    // routing.
-                    List<CandidateAction> standardCandidateActions = new List<CandidateAction>();
-
-                    for (int i = 0; i < _combinedCandidateActions.Length; i++)
-                    {
-                        CandidateAction candidate = _combinedCandidateActions[i];
-                        // Allow standard routes access inherited actions or actions without Route attributes.
-                        if (candidate.ActionDescriptor.MethodInfo.DeclaringType != controllerDescriptor.ControllerType ||
-                            !candidate.ActionDescriptor.GetCustomAttributes<IHttpRouteInfoProvider>(inherit: false).Any())
-                        {
-                            standardCandidateActions.Add(candidate);
-                        }
-                    }
-
-                    _standardCandidateActions = standardCandidateActions.ToArray();
-                }
-
-                _combinedActionNameMapping = _combinedCandidateActions.Select(c => c.ActionDescriptor).ToLookup(actionDesc => actionDesc.ActionName, StringComparer.OrdinalIgnoreCase);
-                _standardActionNameMapping = _standardCandidateActions.Select(c => c.ActionDescriptor).ToLookup(actionDesc => actionDesc.ActionName, StringComparer.OrdinalIgnoreCase);
-
-                // Bucket the action descriptors by common verbs.
-                int len = _cacheListVerbKinds.Length;
-                _cacheListVerbs = new CandidateAction[len][];
-                for (int i = 0; i < len; i++)
-                {
-                    _cacheListVerbs[i] = FindActionsForVerbWorker(_cacheListVerbKinds[i]);
-                }
+                _combinedActionNameMapping = 
+                    _combinedCandidateActions
+                    .Select(c => c.ActionDescriptor)
+                    .ToLookup(actionDesc => actionDesc.ActionName, StringComparer.OrdinalIgnoreCase);
             }
 
             public HttpControllerDescriptor HttpControllerDescriptor
@@ -186,8 +149,67 @@ namespace System.Web.Http.Controllers
                 get { return _controllerDescriptor; }
             }
 
+            // This method lazy-initializes the data needed for action selection. This is a safe race-condition. This is
+            // done because we don't know whether or not an action/controller is attribute routed until after attribute
+            // routes are added.
+            private void InitializeStandardActions()
+            {
+                if (_standardActions != null)
+                {
+                    return;
+                }
+
+                StandardActionSelectionCache standardActions = new StandardActionSelectionCache();
+
+                if (_controllerDescriptor.IsAttributeRouted())
+                {
+                    // The controller has an attribute route; no actionsByVerb are accessible via standard routing.
+                    standardActions.StandardCandidateActions = new CandidateAction[0];
+                }
+                else
+                {
+                    // The controller does not have an attribute route; some actionsByVerb may be accessible via standard
+                    // routing.
+                    List<CandidateAction> standardCandidateActions = new List<CandidateAction>();
+
+                    for (int i = 0; i < _combinedCandidateActions.Length; i++)
+                    {
+                        CandidateAction candidate = _combinedCandidateActions[i];
+
+                        // We know that this cast is safe before we created all of the action descriptors for standard actions
+                        ReflectedHttpActionDescriptor action = (ReflectedHttpActionDescriptor)candidate.ActionDescriptor;
+
+                        // Allow standard routes access inherited actionsByVerb or actionsByVerb without Route attributes.
+                        if (action.MethodInfo.DeclaringType != _controllerDescriptor.ControllerType
+                            || !candidate.ActionDescriptor.IsAttributeRouted())
+                        {
+                            standardCandidateActions.Add(candidate);
+                        }
+                    }
+
+                    standardActions.StandardCandidateActions = standardCandidateActions.ToArray();
+                }
+
+                standardActions.StandardActionNameMapping = 
+                    standardActions.StandardCandidateActions
+                    .Select(c => c.ActionDescriptor)
+                    .ToLookup(actionDesc => actionDesc.ActionName, StringComparer.OrdinalIgnoreCase);
+
+                // Bucket the action descriptors by common verbs.
+                int len = _cacheListVerbKinds.Length;
+                standardActions.CacheListVerbs = new CandidateAction[len][];
+                for (int i = 0; i < len; i++)
+                {
+                    standardActions.CacheListVerbs[i] = FindActionsForVerbWorker(_cacheListVerbKinds[i], standardActions.StandardCandidateActions);
+                }
+
+                _standardActions = standardActions;
+            }
+
             public HttpActionDescriptor SelectAction(HttpControllerContext controllerContext)
             {
+                InitializeStandardActions();
+                
                 List<CandidateActionWithParams> selectedCandidates = FindMatchingActions(controllerContext); 
 
                 switch (selectedCandidates.Count)
@@ -199,7 +221,7 @@ namespace System.Web.Http.Controllers
                         return selectedCandidates[0].ActionDescriptor;
                     default:
 
-                        // Throws exception because multiple actions match the request
+                        // Throws exception because multiple actionsByVerb match the request
                         string ambiguityList = CreateAmbiguousMatchList(selectedCandidates);
                         throw Error.InvalidOperation(SRResources.ApiControllerActionSelector_AmbiguousMatch, ambiguityList);
                 }
@@ -210,8 +232,8 @@ namespace System.Web.Http.Controllers
                 controllerContext.RouteData = selectedCandidate.RouteDataSource;
             }
                         
-            // Find all actions on this controller that match the request. 
-            // if ignoreVerbs = true, then don't filter actions based on mismatching Http verb. This is useful for detecting 404/405. 
+            // Find all actionsByVerb on this controller that match the request. 
+            // if ignoreVerbs = true, then don't filter actionsByVerb based on mismatching Http verb. This is useful for detecting 404/405. 
             private List<CandidateActionWithParams> FindMatchingActions(HttpControllerContext controllerContext, bool ignoreVerbs = false)
             {
                 // If matched with direct route?
@@ -313,7 +335,7 @@ namespace System.Web.Http.Controllers
                     CandidateAction[] candidates = subRouteData.Route.GetDirectRouteCandidates();
 
                     string actionName;
-                    subRouteData.Values.TryGetValue(RouteKeys.ActionKey, out actionName);
+                    subRouteData.Values.TryGetValue(RouteValueKeys.Action, out actionName);
 
                     foreach (var candidate in candidates)
                     {
@@ -350,10 +372,10 @@ namespace System.Web.Http.Controllers
                 Contract.Assert(routeData.GetSubRoutes() == null, "Should not be called on a direct route");
                 CandidateAction[] candidates;
 
-                if (routeData.Values.TryGetValue(RouteKeys.ActionKey, out actionName))
+                if (routeData.Values.TryGetValue(RouteValueKeys.Action, out actionName))
                 {
                     // We have an explicit {action} value, do traditional binding. Just lookup by actionName
-                    ReflectedHttpActionDescriptor[] actionsFoundByName = _standardActionNameMapping[actionName].ToArray();
+                    HttpActionDescriptor[] actionsFoundByName = _standardActions.StandardActionNameMapping[actionName].ToArray();
 
                     // Throws HttpResponseException with NotFound status because no action matches the Name
                     if (actionsFoundByName.Length == 0)
@@ -384,12 +406,12 @@ namespace System.Web.Http.Controllers
                 {
                     if (ignoreVerbs)
                     {
-                        candidates = _standardCandidateActions;
+                        candidates = _standardActions.StandardCandidateActions;
                     }
                     else
                     {
                         // No direct routing or {action} parameter, infer it from the verb.
-                        candidates = FindActionsForVerb(incomingMethod);
+                        candidates = FindActionsForVerb(incomingMethod, _standardActions.CacheListVerbs, _standardActions.StandardCandidateActions);
                     }
                 }
 
@@ -403,15 +425,15 @@ namespace System.Web.Http.Controllers
 
             public ILookup<string, HttpActionDescriptor> GetActionMapping()
             {
-                return new LookupAdapter() { Source = _combinedActionNameMapping };
+                return _combinedActionNameMapping;
             }
 
             // Get a non-null set that combines both the route and query parameters. 
             private static ISet<string> GetCombinedParameterNames(IEnumerable<KeyValuePair<string, string>> queryNameValuePairs, IDictionary<string, object> routeValues)
             {
                 HashSet<string> routeParameterNames = new HashSet<string>(routeValues.Keys, StringComparer.OrdinalIgnoreCase);
-                routeParameterNames.Remove(RouteKeys.ControllerKey);
-                routeParameterNames.Remove(RouteKeys.ActionKey);
+                routeParameterNames.Remove(RouteValueKeys.Controller);
+                routeParameterNames.Remove(RouteValueKeys.Action);
 
                 var combinedParameterNames = new HashSet<string>(routeParameterNames, StringComparer.OrdinalIgnoreCase);
                 if (queryNameValuePairs != null)
@@ -430,7 +452,7 @@ namespace System.Web.Http.Controllers
 
                 foreach (var candidate in candidatesFound)
                 {
-                    ReflectedHttpActionDescriptor descriptor = candidate.ActionDescriptor;
+                    HttpActionDescriptor descriptor = candidate.ActionDescriptor;
                     if (IsSubset(_actionParameterNames[descriptor], candidate.CombinedParameterNames))
                     {
                         matches.Add(candidate);
@@ -455,7 +477,7 @@ namespace System.Web.Http.Controllers
                 return candidatesFound;
             }
 
-            // Given a list of candidate actions, return a parallel list that includes the parameter information. 
+            // Given a list of candidate actionsByVerb, return a parallel list that includes the parameter information. 
             // This is used for regular routing where all candidates come from a single route, so they all share the same route parameter names. 
             private static CandidateActionWithParams[] GetCandidateActionsWithBindings(HttpControllerContext controllerContext, CandidateAction[] candidatesFound)
             {
@@ -503,8 +525,8 @@ namespace System.Web.Http.Controllers
             }
 
             // This is called when we don't specify an Action name
-            // Get list of actions that match a given verb. This can match by name or IActionHttpMethodSelecto
-            private CandidateAction[] FindActionsForVerb(HttpMethod verb)
+            // Get list of actionsByVerb that match a given verb. This can match by name or IActionHttpMethodSelector
+            private static CandidateAction[] FindActionsForVerb(HttpMethod verb, CandidateAction[][] actionsByVerb, CandidateAction[] otherActions)
             {
                 // Check cache for common verbs.
                 for (int i = 0; i < _cacheListVerbKinds.Length; i++)
@@ -513,22 +535,15 @@ namespace System.Web.Http.Controllers
                     // This is significantly more efficient than comparing the verbs based on strings.
                     if (Object.ReferenceEquals(verb, _cacheListVerbKinds[i]))
                     {
-                        return _cacheListVerbs[i];
+                        return actionsByVerb[i];
                     }
                 }
 
                 // General case for any verbs.
-                return FindActionsForVerbWorker(verb);
+                return FindActionsForVerbWorker(verb, otherActions);
             }
 
-            // This is called when we don't specify an Action name
-            // Given all the standard actions on the controller, filter it to ones that match a given verb.
-            private CandidateAction[] FindActionsForVerbWorker(HttpMethod verb)
-            {
-                return FindActionsForVerbWorker(verb, _standardCandidateActions);
-            }
-
-            // Given a list of actions, filter it to ones that match a given verb. This can match by name or IActionHttpMethodSelector.
+            // Given a list of actionsByVerb, filter it to ones that match a given verb. This can match by name or IActionHttpMethodSelector.
             // Since this list is fixed for a given verb type, it can be pre-computed and cached.
             // This function should not do caching. It's the helper that builds the caches.
             private static CandidateAction[] FindActionsForVerbWorker(HttpMethod verb, CandidateAction[] candidates)
@@ -557,13 +572,25 @@ namespace System.Web.Http.Controllers
                 StringBuilder exceptionMessageBuilder = new StringBuilder();
                 foreach (CandidateActionWithParams candidate in ambiguousCandidates)
                 {
-                    ReflectedHttpActionDescriptor descriptor = candidate.ActionDescriptor;
-                    MethodInfo methodInfo = descriptor.MethodInfo;
+                    HttpActionDescriptor descriptor = candidate.ActionDescriptor;
+                    Contract.Assert(descriptor != null);
+
+                    string controllerTypeName;
+
+                    if (descriptor.ControllerDescriptor != null
+                        && descriptor.ControllerDescriptor.ControllerType != null)
+                    {
+                        controllerTypeName = descriptor.ControllerDescriptor.ControllerType.FullName;
+                    }
+                    else
+                    {
+                        controllerTypeName = String.Empty;
+                    }
 
                     exceptionMessageBuilder.AppendLine();
                     exceptionMessageBuilder.Append(Error.Format(
                         SRResources.ActionSelector_AmbiguousMatchType,
-                        methodInfo, methodInfo.DeclaringType.FullName));
+                        descriptor.ActionName, controllerTypeName));
                 }
 
                 return exceptionMessageBuilder.ToString();
@@ -613,7 +640,7 @@ namespace System.Web.Http.Controllers
             // Remember this so that we can apply it for model binding. 
             public IHttpRouteData RouteDataSource { get; private set; }
 
-            public ReflectedHttpActionDescriptor ActionDescriptor
+            public HttpActionDescriptor ActionDescriptor
             {
                 get
                 {
@@ -638,38 +665,16 @@ namespace System.Web.Http.Controllers
             }
         }
 
-        // We need to expose ILookup<string, HttpActionDescriptor>, but we have a ILookup<string, ReflectedHttpActionDescriptor>
-        // ReflectedHttpActionDescriptor derives from HttpActionDescriptor, but ILookup doesn't support Covariance.
-        // Adapter class since ILookup doesn't support Covariance.
-        // Fortunately, IGrouping, IEnumerable support Covariance, so it's easy to forward.
-        private class LookupAdapter : ILookup<string, HttpActionDescriptor>
+        // A cache of the 'standard actions' for a controller - the actions that are reachable via traditional routes.
+        private class StandardActionSelectionCache
         {
-            public ILookup<string, ReflectedHttpActionDescriptor> Source;
+            // Includes action descriptors only for actions accessible via standard routing (without route attributes).
+            public ILookup<string, HttpActionDescriptor> StandardActionNameMapping { get; set; }
 
-            public int Count
-            {
-                get { return Source.Count; }
-            }
+            // Includes action descriptors only for actions accessible via standard routing (without route attributes).
+            public CandidateAction[] StandardCandidateActions { get; set; }
 
-            public IEnumerable<HttpActionDescriptor> this[string key]
-            {
-                get { return Source[key]; }
-            }
-
-            public bool Contains(string key)
-            {
-                return Source.Contains(key);
-            }
-
-            public IEnumerator<IGrouping<string, HttpActionDescriptor>> GetEnumerator()
-            {
-                return Source.GetEnumerator();
-            }
-
-            Collections.IEnumerator Collections.IEnumerable.GetEnumerator()
-            {
-                return Source.GetEnumerator();
-            }
+            public CandidateAction[][] CacheListVerbs { get; set; }
         }
     }
 }

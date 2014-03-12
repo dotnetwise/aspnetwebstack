@@ -4,7 +4,7 @@
 
     <PropertyGroup>
         <!-- build.cmd sets /p:Desktop=true. The CI server does not; instead, it does an additional step with /p:Configuration=CodeAnalysis. -->
-        <Configuration Condition=" '$(Configuration)' == '' and '$(Desktop)' == 'true' ">CodeAnalysis</Configuration>
+        <Configuration Condition=" '$(Configuration)' == '' and '$(Desktop)' == 'true' ">Release</Configuration>
         <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
         <CodeAnalysis Condition=" '$(CodeAnalysis)' == '' and '$(Configuration)' != 'Release' ">true</CodeAnalysis>
         <StyleCopEnabled Condition=" '$(StyleCopEnabled)' == '' ">true</StyleCopEnabled>
@@ -94,7 +94,7 @@
             BuildInParallel="%(SolutionsToBuild.BuildInParallel)"
             Targets="Build"
             Condition=" '%(SolutionsToBuild.Portable)' != 'true' or '$(BuildPortable)' == 'true' "
-            Properties="Configuration=$(Configuration);CodeAnalysis=$(CodeAnalysis);StyleCopEnabled=$(StyleCopEnabled);VisualStudioVersion=$(VisualStudioVersion)" />
+            Properties="Configuration=$(Configuration);CodeAnalysis=False;StyleCopEnabled=$(StyleCopEnabled);VisualStudioVersion=$(VisualStudioVersion)" />
     </Target>
 
     <Target Name="UnitTest" DependsOnTargets="CheckSkipStrongNames;Build">

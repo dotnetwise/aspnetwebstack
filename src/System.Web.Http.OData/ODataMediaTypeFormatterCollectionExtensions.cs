@@ -2,8 +2,6 @@
 
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics.Contracts;
-using System.Linq;
 using System.Net.Http.Formatting;
 
 namespace System.Web.Http
@@ -23,6 +21,7 @@ namespace System.Web.Http
         /// The items collection itself cannot be <see langword="null"/>, but it can contain elements that are
         /// <see langword="null"/>.
         /// </param>
+        [Obsolete("This method is obsolete; use the AddRange method in the MediaTypeFormatterCollection class.")]
         public static void AddRange(this MediaTypeFormatterCollection collection,
             IEnumerable<MediaTypeFormatter> items)
         {
@@ -31,15 +30,7 @@ namespace System.Web.Http
                 throw Error.ArgumentNull("collection");
             }
 
-            if (items == null)
-            {
-                throw Error.ArgumentNull("items");
-            }
-
-            foreach (MediaTypeFormatter item in items)
-            {
-                collection.Add(item);
-            }
+            collection.AddRange(items);
         }
 
         /// <summary>
@@ -52,6 +43,7 @@ namespace System.Web.Http
         /// The items that should be inserted into the <see cref="MediaTypeFormatterCollection"/>. The items collection
         /// itself cannot be <see langword="null"/>, but it can contain elements that are <see langword="null"/>.
         /// </param>
+        [Obsolete("This method is obsolete; use the InsertRange method in the MediaTypeFormatterCollection class.")]
         public static void InsertRange(this MediaTypeFormatterCollection collection,
             int index, IEnumerable<MediaTypeFormatter> items)
         {
@@ -60,29 +52,7 @@ namespace System.Web.Http
                 throw Error.ArgumentNull("collection");
             }
 
-            if (items == null)
-            {
-                throw Error.ArgumentNull("items");
-            }
-
-            foreach (MediaTypeFormatter item in items)
-            {
-                collection.Insert(index++, item);
-            }
-        }
-
-        internal static void RemoveRange(this MediaTypeFormatterCollection collection,
-            IEnumerable<MediaTypeFormatter> items)
-        {
-            Contract.Assert(collection != null);
-            Contract.Assert(items != null);
-
-            // Instantiate a separate array in case items and collection are linked. Otherwise, if modifying collection
-            // itself modified items, this code would throw during enumeration.
-            foreach (MediaTypeFormatter item in items.ToArray())
-            {
-                collection.Remove(item);
-            }
+            collection.InsertRange(index, items);
         }
     }
 }

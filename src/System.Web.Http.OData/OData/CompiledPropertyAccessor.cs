@@ -2,6 +2,7 @@
 
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Web.Http.OData.Formatter.Deserialization;
 
 namespace System.Web.Http.OData
 {
@@ -12,14 +13,22 @@ namespace System.Web.Http.OData
     /// <typeparam name="TEntityType">The type on which the PropertyInfo exists</typeparam>
     internal class CompiledPropertyAccessor<TEntityType> : PropertyAccessor<TEntityType> where TEntityType : class
     {
+        private bool _isCollection;
+        private PropertyInfo _property;
         private Action<TEntityType, object> _setter;
         private Func<TEntityType, object> _getter;
 
         public CompiledPropertyAccessor(PropertyInfo property)
             : base(property)
         {
-            _setter = MakeSetter(Property);
+            _property = property;
+            _isCollection = property.PropertyType.IsCollection();
             _getter = MakeGetter(Property);
+
+            if (!_isCollection)
+            {
+                _setter = MakeSetter(property);
+            }
         }
 
         public override object GetValue(TEntityType entity)
@@ -37,7 +46,16 @@ namespace System.Web.Http.OData
             {
                 throw Error.ArgumentNull("entity");
             }
-            _setter(entity, value);
+
+            if (_isCollection)
+            {
+                DeserializationHelpers.SetCollectionProperty(entity, _property.Name, edmPropertyType: null,
+                    value: value, clearCollection: true);
+            }
+            else
+            {
+                _setter(entity, value);
+            }
         }
 
         private static Action<TEntityType, object> MakeSetter(PropertyInfo property)

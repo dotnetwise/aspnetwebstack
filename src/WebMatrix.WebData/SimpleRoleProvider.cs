@@ -384,7 +384,7 @@ namespace WebMatrix.WebData
                         foreach (Guid roleId in roleIds)
                         {
                             // Review: Is there a way to do these all in one query?
-                            int rows = db.Execute("DELETE FROM " + UsersInRoleTableName + " WHERE UserId = " + userId + " and RoleId = " + roleId);
+                            int rows = db.Execute("DELETE FROM " + UsersInRoleTableName + " WHERE UserId = '" + userId + "' and RoleId = '" + roleId + "'");
                             if (rows != 1)
                             {
                                 throw new ProviderException(WebDataResources.Security_DbFailure);
