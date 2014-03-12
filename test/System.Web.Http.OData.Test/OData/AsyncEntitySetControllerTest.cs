@@ -4,9 +4,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Web.Http.Controllers;
-using System.Web.Http.Hosting;
 using System.Web.Http.OData.Builder;
+using System.Web.Http.OData.Extensions;
 using System.Web.Http.OData.Formatter;
 using System.Web.Http.OData.Routing;
 using System.Web.Http.Routing;
@@ -29,19 +28,19 @@ namespace System.Web.Http.OData
             ODataConventionModelBuilder builder = new ODataConventionModelBuilder();
             builder.EntitySet<EmployeesController.Employee>("AsyncEmployees");
             _model = builder.GetEdmModel();
-            configuration.Routes.MapODataRoute(_model);
+            configuration.Routes.MapODataServiceRoute(_model);
 
             _server = new HttpServer(configuration);
             _client = new HttpClient(_server);
         }
 
         [Fact]
-        public void GetODataPath_ReturnsRequestODataPath()
+        public void ODataPath_ReturnsRequestODataPath()
         {
             var controller = new Mock<AsyncEntitySetController<FormatterPerson, int>>().Object;
             var request = new HttpRequestMessage();
             var path = new ODataPath(new EntitySetPathSegment("Customers"));
-            request.SetODataPath(path);
+            request.ODataProperties().Path = path;
             controller.Request = request;
 
             Assert.Equal(path, controller.ODataPath);
@@ -54,7 +53,7 @@ namespace System.Web.Http.OData
             var request = new HttpRequestMessage();
             var configuration = new HttpConfiguration();
             var model = ODataTestUtil.GetEdmModel();
-            request.SetEdmModel(model);
+            request.ODataProperties().Model = model;
             controller.Request = request;
             controller.Configuration = configuration;
 
@@ -82,7 +81,7 @@ namespace System.Web.Http.OData
         public void GetByKey_ReturnsNotFound_IfGetEntityByKeyReturnsNull()
         {
             var controllerMock = new Mock<AsyncEntitySetController<FormatterPerson, int>>();
-            controllerMock.Setup(c => c.GetEntityByKeyAsync(It.IsAny<int>())).Returns(TaskHelpers.FromResult<FormatterPerson>(null));
+            controllerMock.Setup(c => c.GetEntityByKeyAsync(It.IsAny<int>())).Returns(Task.FromResult<FormatterPerson>(null));
             controllerMock.CallBase = true;
             var controller = controllerMock.Object;
             controller.Request = new HttpRequestMessage();
@@ -98,7 +97,7 @@ namespace System.Web.Http.OData
         {
             var entity = new FormatterPerson();
             var controllerMock = new Mock<AsyncEntitySetController<FormatterPerson, int>>();
-            controllerMock.Setup(c => c.GetEntityByKeyAsync(It.IsAny<int>())).Returns(TaskHelpers.FromResult(entity));
+            controllerMock.Setup(c => c.GetEntityByKeyAsync(It.IsAny<int>())).Returns(Task.FromResult(entity));
             controllerMock.CallBase = true;
             var controller = controllerMock.Object;
             SetupController(controller);
@@ -114,7 +113,7 @@ namespace System.Web.Http.OData
         {
             var entity = new FormatterPerson();
             var controllerMock = new Mock<AsyncEntitySetController<FormatterPerson, int>>();
-            controllerMock.Setup(c => c.CreateEntityAsync(It.IsAny<FormatterPerson>())).Returns(TaskHelpers.FromResult(entity));
+            controllerMock.Setup(c => c.CreateEntityAsync(It.IsAny<FormatterPerson>())).Returns(Task.FromResult(entity));
             controllerMock.Setup(c => c.GetKey(It.IsAny<FormatterPerson>())).Returns(5);
             controllerMock.CallBase = true;
             var controller = controllerMock.Object;
@@ -132,7 +131,7 @@ namespace System.Web.Http.OData
         {
             var entity = new FormatterPerson();
             var controllerMock = new Mock<AsyncEntitySetController<FormatterPerson, int>>();
-            controllerMock.Setup(c => c.CreateEntityAsync(It.IsAny<FormatterPerson>())).Returns(TaskHelpers.FromResult(entity));
+            controllerMock.Setup(c => c.CreateEntityAsync(It.IsAny<FormatterPerson>())).Returns(Task.FromResult(entity));
             controllerMock.Setup(c => c.GetKey(It.IsAny<FormatterPerson>())).Returns(5);
             controllerMock.CallBase = true;
             var controller = controllerMock.Object;
@@ -151,7 +150,7 @@ namespace System.Web.Http.OData
         {
             var entity = new FormatterPerson();
             var controllerMock = new Mock<AsyncEntitySetController<FormatterPerson, int>>();
-            controllerMock.Setup(c => c.UpdateEntityAsync(It.IsAny<int>(), It.IsAny<FormatterPerson>())).Returns(TaskHelpers.FromResult(entity));
+            controllerMock.Setup(c => c.UpdateEntityAsync(It.IsAny<int>(), It.IsAny<FormatterPerson>())).Returns(Task.FromResult(entity));
             controllerMock.CallBase = true;
             var controller = controllerMock.Object;
             SetupController(controller);
@@ -166,7 +165,7 @@ namespace System.Web.Http.OData
         {
             var entity = new FormatterPerson();
             var controllerMock = new Mock<AsyncEntitySetController<FormatterPerson, int>>();
-            controllerMock.Setup(c => c.UpdateEntityAsync(It.IsAny<int>(), It.IsAny<FormatterPerson>())).Returns(TaskHelpers.FromResult(entity));
+            controllerMock.Setup(c => c.UpdateEntityAsync(It.IsAny<int>(), It.IsAny<FormatterPerson>())).Returns(Task.FromResult(entity));
             controllerMock.CallBase = true;
             var controller = controllerMock.Object;
             SetupController(controller);
@@ -184,7 +183,7 @@ namespace System.Web.Http.OData
         {
             var entity = new FormatterPerson();
             var controllerMock = new Mock<AsyncEntitySetController<FormatterPerson, int>>();
-            controllerMock.Setup(c => c.PatchEntityAsync(It.IsAny<int>(), It.IsAny<Delta<FormatterPerson>>())).Returns(TaskHelpers.FromResult(entity));
+            controllerMock.Setup(c => c.PatchEntityAsync(It.IsAny<int>(), It.IsAny<Delta<FormatterPerson>>())).Returns(Task.FromResult(entity));
             controllerMock.CallBase = true;
             var controller = controllerMock.Object;
             SetupController(controller);
@@ -199,7 +198,7 @@ namespace System.Web.Http.OData
         {
             var entity = new FormatterPerson();
             var controllerMock = new Mock<AsyncEntitySetController<FormatterPerson, int>>();
-            controllerMock.Setup(c => c.PatchEntityAsync(It.IsAny<int>(), It.IsAny<Delta<FormatterPerson>>())).Returns(TaskHelpers.FromResult(entity));
+            controllerMock.Setup(c => c.PatchEntityAsync(It.IsAny<int>(), It.IsAny<Delta<FormatterPerson>>())).Returns(Task.FromResult(entity));
             controllerMock.CallBase = true;
             var controller = controllerMock.Object;
             SetupController(controller);
@@ -230,7 +229,7 @@ namespace System.Web.Http.OData
         {
             var config = new HttpConfiguration();
             config.Routes.MapHttpRoute("Default", "{controller}/{action}");
-            config.Routes.MapODataRoute(new ODataConventionModelBuilder().GetEdmModel());
+            config.Routes.MapODataServiceRoute(new ODataConventionModelBuilder().GetEdmModel());
             var explorer = config.Services.GetApiExplorer();
 
             var apis = explorer.ApiDescriptions.Select(api => api.ActionDescriptor.ControllerDescriptor.ControllerName);
@@ -243,11 +242,11 @@ namespace System.Web.Http.OData
             var config = new HttpConfiguration();
             IEdmModel model = ODataTestUtil.GetEdmModel();
             string routeName = "Route";
-            config.Routes.MapODataRoute(routeName, null, model);
+            config.Routes.MapODataServiceRoute(routeName, null, model);
             HttpRequestMessage request = new HttpRequestMessage(new HttpMethod("Mock"), "http://localhost/People");
             request.SetConfiguration(config);
-            request.SetODataPath(new DefaultODataPathHandler().Parse(model, "People"));
-            request.SetODataRouteName(routeName);
+            request.ODataProperties().Path = new DefaultODataPathHandler().Parse(model, "People");
+            request.ODataProperties().RouteName = routeName;
             controller.Request = request;
             controller.Configuration = config;
             controller.Url = new UrlHelper(request);
@@ -258,7 +257,7 @@ namespace System.Web.Http.OData
     {
         protected internal override Task<EmployeesController.Employee> GetEntityByKeyAsync(Guid key)
         {
-            return TaskHelpers.FromResult(new EmployeesController.Employee() { EmployeeID = key, EmployeeName = "Bob" });
+            return Task.FromResult(new EmployeesController.Employee() { EmployeeID = key, EmployeeName = "Bob" });
         }
     }
 }

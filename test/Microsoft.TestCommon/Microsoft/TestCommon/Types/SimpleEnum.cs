@@ -6,6 +6,7 @@ namespace Microsoft.TestCommon.Types
     {
         First,
         Second,
-        Third
+        Third,
+        Fourth
     }
 }

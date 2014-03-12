@@ -14,6 +14,7 @@ namespace System.Web.Http.Batch
         [InlineData("MS_SynchronizationContext")]
         [InlineData("MS_HttpConfiguration")]
         [InlineData("MS_HttpBatchContext")]
+        [InlineData("MS_RoutingContext")]
         public void CopyBatchRequestProperties_IgnoresSpecialProperties(string specialPropertyName)
         {
             // Arrange
@@ -49,6 +50,26 @@ namespace System.Web.Http.Batch
                 Assert.IsType<BatchHttpRequestContext>(context);
                 BatchHttpRequestContext typedContext = (BatchHttpRequestContext)context;
                 Assert.Same(expectedOriginalContext, typedContext.BatchContext);
+            }
+        }
+
+        [Fact]
+        public void CopyBatchRequestProperties_SetsRequestContextWithUrlHelperForSubRequest()
+        {
+            // Arrange
+            using (HttpRequestMessage subRequest = new HttpRequestMessage())
+            using (HttpRequestMessage batchRequest = new HttpRequestMessage())
+            {
+                subRequest.SetRequestContext(new HttpRequestContext());
+
+                // Act
+                BatchHttpRequestMessageExtensions.CopyBatchRequestProperties(subRequest, batchRequest);
+
+                // Assert
+                HttpRequestContext context = subRequest.GetRequestContext();
+                Assert.NotNull(context);
+                Assert.NotNull(context.Url);
+                Assert.Same(subRequest, context.Url.Request);
             }
         }
     }

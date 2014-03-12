@@ -65,6 +65,11 @@ namespace System.Web.Mvc
             get { return _additionalValues; }
         }
 
+        /// <summary>
+        /// A reference to the model's container object. Will be non-null if the model represents a property.
+        /// </summary>
+        public object Container { get; set; }
+
         public Type ContainerType
         {
             get { return _containerType; }
@@ -86,6 +91,8 @@ namespace System.Web.Mvc
         public virtual string DisplayName { get; set; }
 
         public virtual string EditFormatString { get; set; }
+
+        internal virtual bool HasNonDefaultEditFormat { get; set; }
 
         public virtual bool HideSurroundingHtml { get; set; }
 
@@ -304,12 +311,12 @@ namespace System.Web.Mvc
                 }
             };
 
-            return GetMetadataFromProvider(modelAccessor, typeof(TValue), propertyName, containerType, metadataProvider);
+            return GetMetadataFromProvider(modelAccessor, typeof(TValue), propertyName, container, containerType, metadataProvider);
         }
 
         private static ModelMetadata FromModel(ViewDataDictionary viewData, ModelMetadataProvider metadataProvider)
         {
-            return viewData.ModelMetadata ?? GetMetadataFromProvider(null, typeof(string), null, null, metadataProvider);
+            return viewData.ModelMetadata ?? GetMetadataFromProvider(null, typeof(string), null, null, null, metadataProvider);
         }
 
         public static ModelMetadata FromStringExpression(string expression, ViewDataDictionary viewData)
@@ -334,6 +341,7 @@ namespace System.Web.Mvc
             }
 
             ViewDataInfo vdi = viewData.GetViewDataInfo(expression);
+            object container = null;
             Type containerType = null;
             Type modelType = null;
             Func<object> modelAccessor = null;
@@ -343,6 +351,7 @@ namespace System.Web.Mvc
             {
                 if (vdi.Container != null)
                 {
+                    container = vdi.Container;
                     containerType = vdi.Container.GetType();
                 }
 
@@ -369,7 +378,7 @@ namespace System.Web.Mvc
                 }
             }
 
-            return GetMetadataFromProvider(modelAccessor, modelType ?? typeof(string), propertyName, containerType, metadataProvider);
+            return GetMetadataFromProvider(modelAccessor, modelType ?? typeof(string), propertyName, container, containerType, metadataProvider);
         }
 
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate", Justification = "The method is a delegating helper to choose among multiple property values")]
@@ -378,12 +387,17 @@ namespace System.Web.Mvc
             return DisplayName ?? PropertyName ?? ModelType.Name;
         }
 
-        private static ModelMetadata GetMetadataFromProvider(Func<object> modelAccessor, Type modelType, string propertyName, Type containerType, ModelMetadataProvider metadataProvider)
+        private static ModelMetadata GetMetadataFromProvider(Func<object> modelAccessor, Type modelType, string propertyName, object container, Type containerType, ModelMetadataProvider metadataProvider)
         {
             metadataProvider = metadataProvider ?? ModelMetadataProviders.Current;
             if (containerType != null && !String.IsNullOrEmpty(propertyName))
             {
-                return metadataProvider.GetMetadataForProperty(modelAccessor, containerType, propertyName);
+                ModelMetadata metadata = metadataProvider.GetMetadataForProperty(modelAccessor, containerType, propertyName);
+                if (metadata != null)
+                {
+                    metadata.Container = container;
+                }
+                return metadata;
             }
             return metadataProvider.GetMetadataForType(modelAccessor, modelType);
         }

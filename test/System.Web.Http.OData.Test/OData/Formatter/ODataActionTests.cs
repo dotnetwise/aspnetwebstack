@@ -1,10 +1,11 @@
 ﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Web.Http.Hosting;
 using System.Web.Http.OData.Builder;
+using System.Web.Http.OData.Extensions;
 using Microsoft.Data.Edm;
 using Microsoft.TestCommon;
 using Newtonsoft.Json.Linq;
@@ -23,7 +24,7 @@ namespace System.Web.Http.OData.Formatter
             _model = GetModel();
             configuration.Formatters.Clear();
             configuration.Formatters.AddRange(ODataMediaTypeFormatters.Create());
-            configuration.Routes.MapODataRoute(_model);
+            configuration.Routes.MapODataServiceRoute(_model);
 
             _server = new HttpServer(configuration);
             _client = new HttpClient(_server);
@@ -117,8 +118,8 @@ namespace System.Web.Http.OData.Formatter
             Assert.Equal(1, key);
             Assert.Equal(1, parameters["p1"]);
             ValidateAddress(parameters["p2"] as ODataActionTests.Address);
-            ValidateNumbers(parameters["p3"] as IList<string>);
-            ValidateAddresses(parameters["p4"] as IList<ODataActionTests.Address>);
+            ValidateNumbers((parameters["p3"] as IEnumerable<string>).ToList());
+            ValidateAddresses((parameters["p4"] as IEnumerable<ODataActionTests.Address>).ToList());
             return true;
         }
 

@@ -22,9 +22,9 @@ namespace System.Web.Http.Routing
 
             List<CandidateAction> candidates = new List<CandidateAction>();
 
-            ReflectedHttpActionDescriptor[] directRouteActions = null;
-            ReflectedHttpActionDescriptor[] possibleDirectRouteActions;
-            if (dataTokens.TryGetValue<ReflectedHttpActionDescriptor[]>(RouteKeys.ActionsDataTokenKey, out possibleDirectRouteActions))
+            HttpActionDescriptor[] directRouteActions = null;
+            HttpActionDescriptor[] possibleDirectRouteActions;
+            if (dataTokens.TryGetValue<HttpActionDescriptor[]>(RouteDataTokenKeys.Actions, out possibleDirectRouteActions))
             {
                 if (possibleDirectRouteActions != null && possibleDirectRouteActions.Length > 0)
                 {
@@ -39,7 +39,7 @@ namespace System.Web.Http.Routing
 
             int order = 0;
             int possibleOrder;
-            if (dataTokens.TryGetValue<int>(RouteKeys.OrderDataTokenKey, out possibleOrder))
+            if (dataTokens.TryGetValue<int>(RouteDataTokenKeys.Order, out possibleOrder))
             {
                 order = possibleOrder;
             }
@@ -47,12 +47,12 @@ namespace System.Web.Http.Routing
             decimal precedence = 0M;
             decimal possiblePrecedence;
 
-            if (dataTokens.TryGetValue<decimal>(RouteKeys.PrecedenceDataTokenKey, out possiblePrecedence))
+            if (dataTokens.TryGetValue<decimal>(RouteDataTokenKeys.Precedence, out possiblePrecedence))
             {
                 precedence = possiblePrecedence;
             }
 
-            foreach (ReflectedHttpActionDescriptor actionDescriptor in directRouteActions)
+            foreach (HttpActionDescriptor actionDescriptor in directRouteActions)
             {
                 candidates.Add(new CandidateAction
                 {
@@ -63,6 +63,46 @@ namespace System.Web.Http.Routing
             }
 
             return candidates.ToArray();
+        }
+
+        public static HttpActionDescriptor[] GetTargetActionDescriptors(this IHttpRoute route)
+        {
+            Contract.Assert(route != null);
+            IDictionary<string, object> dataTokens = route.DataTokens;
+
+            if (dataTokens == null)
+            {
+                return null;
+            }
+
+            HttpActionDescriptor[] actions;
+
+            if (!dataTokens.TryGetValue<HttpActionDescriptor[]>(RouteDataTokenKeys.Actions, out actions))
+            {
+                return null;
+            }
+
+            return actions;
+        }
+
+        public static HttpControllerDescriptor GetTargetControllerDescriptor(this IHttpRoute route)
+        {
+            Contract.Assert(route != null);
+            IDictionary<string, object> dataTokens = route.DataTokens;
+
+            if (dataTokens == null)
+            {
+                return null;
+            }
+
+            HttpControllerDescriptor controller;
+
+            if (!dataTokens.TryGetValue<HttpControllerDescriptor>(RouteDataTokenKeys.Controller, out controller))
+            {
+                return null;
+            }
+
+            return controller;
         }
     }
 }

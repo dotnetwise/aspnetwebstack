@@ -4,11 +4,13 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace System.Web.Mvc.Ajax
 {
     public class AjaxOptions
     {
+        private static readonly Regex _idRegex = new Regex(@"[.:[\]]");
         private string _confirm;
         private string _httpMethod;
         private InsertionMode _insertionMode = InsertionMode.Replace;
@@ -132,11 +134,15 @@ namespace System.Web.Mvc.Ajax
             set { _url = value; }
         }
 
+        public bool AllowCache { get; set; }
+
         internal string ToJavascriptString()
         {
             // creates a string of the form { key1: value1, key2 : value2, ... }
+            // This method is used for generating obtrusive JavaScript (using MicrosoftMvcAjax.js) which is no longer 
+            // actively maintained. Consequently, we'll ignore the AllowCache option if it's set for this code path.
             StringBuilder optionsBuilder = new StringBuilder("{");
-            optionsBuilder.Append(String.Format(CultureInfo.InvariantCulture, " insertionMode: {0},", InsertionModeString));
+            optionsBuilder.AppendFormat(CultureInfo.InvariantCulture, " insertionMode: {0},", InsertionModeString);
             optionsBuilder.Append(PropertyStringIfSpecified("confirm", Confirm));
             optionsBuilder.Append(PropertyStringIfSpecified("httpMethod", HttpMethod));
             optionsBuilder.Append(PropertyStringIfSpecified("loadingElementId", LoadingElementId));
@@ -167,9 +173,16 @@ namespace System.Web.Mvc.Ajax
             AddToDictionaryIfSpecified(result, "data-ajax-failure", OnFailure);
             AddToDictionaryIfSpecified(result, "data-ajax-success", OnSuccess);
 
+            if (AllowCache)
+            {
+                // On the client, the absence of the data-ajax-cache attribute is equivalent to setting it to false.
+                // Consequently we'll only set it if the user wants to opt into caching. 
+                AddToDictionaryIfSpecified(result, "data-ajax-cache", "true");
+            }
+
             if (!String.IsNullOrWhiteSpace(LoadingElementId))
             {
-                result.Add("data-ajax-loading", "#" + LoadingElementId);
+                result.Add("data-ajax-loading", EscapeIdSelector(LoadingElementId));
 
                 if (LoadingElementDuration > 0)
                 {
@@ -179,7 +192,7 @@ namespace System.Web.Mvc.Ajax
 
             if (!String.IsNullOrWhiteSpace(UpdateTargetId))
             {
-                result.Add("data-ajax-update", "#" + UpdateTargetId);
+                result.Add("data-ajax-update", EscapeIdSelector(UpdateTargetId));
                 result.Add("data-ajax-mode", InsertionModeUnobtrusive);
             }
 
@@ -213,6 +226,16 @@ namespace System.Web.Mvc.Ajax
                 return String.Format(CultureInfo.InvariantCulture, " {0}: '{1}',", propertyName, escapedPropertyValue);
             }
             return String.Empty;
+        }
+
+        private static string EscapeIdSelector(string selector)
+        {
+            // The string returned by this function is used as a value for jQuery's selector. The characters dot, colon and 
+            // square brackets are valid id characters but need to be properly escaped since they have special meaning. For
+            // e.g., for the id a.b, $('#a.b') would cause ".b" to treated as a class selector. The correct way to specify
+            // this selector would be to escape the dot to get $('#a\.b').
+            // See http://learn.jquery.com/using-jquery-core/faq/how-do-i-select-an-element-by-an-id-that-has-characters-used-in-css-notation/
+            return '#' + _idRegex.Replace(selector, @"\$&");
         }
     }
 }

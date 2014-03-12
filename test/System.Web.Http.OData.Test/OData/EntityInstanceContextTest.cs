@@ -2,7 +2,6 @@
 
 using System.Collections.Generic;
 using System.Net.Http;
-using System.Web.Http.OData.Formatter;
 using System.Web.Http.OData.Formatter.Serialization;
 using System.Web.Http.Routing;
 using Microsoft.Data.Edm;
@@ -94,6 +93,24 @@ namespace System.Web.Http.OData
             Assert.Throws<InvalidOperationException>(
                 () => instanceContext.GetPropertyValue("SomeProperty"),
                 "The property 'EdmObject' of EntityInstanceContext cannot be null.");
+        }
+
+        [Fact]
+        public void GetPropertyValue_ThrowsInvalidOperation_IfEdmObjectGetEdmTypeReturnsNull()
+        {
+            // Arrange
+            object outObject = null;
+            Mock<IEdmEntityObject> mock = new Mock<IEdmEntityObject>();
+            mock.Setup(o => o.TryGetPropertyValue(It.IsAny<string>(), out outObject)).Returns(false).Verifiable();
+            mock.Setup(o => o.GetEdmType()).Returns<IEdmRowTypeReference>(null).Verifiable();
+            EntityInstanceContext context = new EntityInstanceContext();
+            context.EdmObject = mock.Object;
+
+            // Act & Assert
+            Assert.Throws<InvalidOperationException>(() => context.GetPropertyValue("SomeProperty"),
+                exceptionMessage: "The EDM type of the object of type 'Castle.Proxies.IEdmEntityObjectProxy' is null. " +
+                "The EDM type of an IEdmObject cannot be null.");
+            mock.Verify();
         }
 
         [Fact]

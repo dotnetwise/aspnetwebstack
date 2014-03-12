@@ -1,8 +1,10 @@
 ﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Web.Http.OData.Builder.TestModels;
+using System.Web.Http.OData.Extensions;
 using System.Web.Http.OData.Formatter.Serialization;
 using System.Web.Http.Routing;
 using Microsoft.Data.Edm;
@@ -344,9 +346,9 @@ namespace System.Web.Http.OData.Builder
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://server/Movies");
             HttpConfiguration configuration = new HttpConfiguration();
             string routeName = "Route";
-            configuration.Routes.MapODataRoute(routeName, null, model);
+            configuration.Routes.MapODataServiceRoute(routeName, null, model);
             request.SetConfiguration(configuration);
-            request.SetODataRouteName(routeName);
+            request.ODataProperties().RouteName = routeName;
             UrlHelper urlHelper = new UrlHelper(request);
 
             // Act
@@ -407,6 +409,92 @@ namespace System.Web.Http.OData.Builder
 
             // Assert
             Assert.Equal(value, action.FollowsConventions);
+        }
+
+        [Fact]
+        public void ReturnsFromEntitySet_Sets_EntitySetAndReturnType()
+        {
+            // Arrange
+            string entitySetName = "movies";
+            ODataModelBuilder builder = new ODataModelBuilder();
+            var movies = builder.EntitySet<Movie>(entitySetName);
+            var action = builder.Action("Action");
+
+            // Act
+            action.ReturnsFromEntitySet(movies);
+
+            // Assert
+            Assert.Equal(entitySetName, action.EntitySet.Name);
+            Assert.Equal(typeof(Movie), action.ReturnType.ClrType);
+        }
+
+        [Fact]
+        public void ReturnsFromEntitySet_ThrowsArgumentNull_EntitySetConfiguration()
+        {
+            // Arrange
+            ODataModelBuilder builder = new ODataModelBuilder();
+            var action = builder.Action("action");
+
+            // Act & Assert
+            Assert.ThrowsArgumentNull(() => action.ReturnsFromEntitySet<Movie>(entitySetConfiguration: null),
+                "entitySetConfiguration");
+        }
+
+        [Fact]
+        public void ReturnsCollectionFromEntitySet_Sets_EntitySetAndReturnType()
+        {
+            // Arrange
+            string entitySetName = "movies";
+            ODataModelBuilder builder = new ODataModelBuilder();
+            var movies = builder.EntitySet<Movie>(entitySetName);
+            var action = builder.Action("Action");
+
+            // Act
+            action.ReturnsCollectionFromEntitySet(movies);
+
+            // Assert
+            Assert.Equal(entitySetName, action.EntitySet.Name);
+            Assert.Equal(typeof(IEnumerable<Movie>), action.ReturnType.ClrType);
+        }
+
+        [Fact]
+        public void ReturnsCollectionFromEntitySet_ThrowsArgumentNull_EntitySetConfiguration()
+        {
+            // Arrange
+            ODataModelBuilder builder = new ODataModelBuilder();
+            var action = builder.Action("action");
+
+            // Act & Assert
+            Assert.ThrowsArgumentNull(() => action.ReturnsCollectionFromEntitySet<Movie>(entitySetConfiguration: null),
+                "entitySetConfiguration");
+        }
+
+        [Fact]
+        public void Returns_ThrowsInvalidOperationException_IfReturnTypeIsEntity()
+        {
+            // Arrange
+            ODataModelBuilder builder = new ODataModelBuilder();
+            builder.Entity<Movie>();
+            var action = builder.Action("action");
+
+            // Act & Assert
+            Assert.Throws<InvalidOperationException>(() => action.Returns<Movie>(),
+                "The EDM type 'System.Web.Http.OData.Builder.Movie' is already declared as an entity type. Use the " +
+                "method 'ReturnsFromEntitySet' if the return type is an entity.");
+        }
+
+        [Fact]
+        public void ReturnsCollection_ThrowsInvalidOperationException_IfReturnTypeIsEntity()
+        {
+            // Arrange
+            ODataModelBuilder builder = new ODataModelBuilder();
+            builder.Entity<Movie>();
+            var action = builder.Action("action");
+
+            // Act & Assert
+            Assert.Throws<InvalidOperationException>(() => action.ReturnsCollection<Movie>(),
+                "The EDM type 'System.Web.Http.OData.Builder.Movie' is already declared as an entity type. Use the " +
+                "method 'ReturnsCollectionFromEntitySet' if the return type is an entity collection.");
         }
 
         public class Movie

@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Formatting;
 using System.Net.Http.Headers;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Http.Properties;
 using System.Web.Http.Services;
@@ -192,10 +193,30 @@ namespace System.Web.Http.Tracing.Tracers
             return InnerFormatter.ToString();
         }
 
-        public override Task<object> ReadFromStreamAsync(Type type, Stream readStream, HttpContent content, IFormatterLogger formatterLogger)
+        public override Task<object> ReadFromStreamAsync(Type type, Stream readStream, HttpContent content,
+            IFormatterLogger formatterLogger)
+        {
+            return ReadFromStreamAsyncCore(type, readStream, content, formatterLogger, cancellationToken: null);
+        }
+
+        public override Task<object> ReadFromStreamAsync(Type type, Stream readStream, HttpContent content,
+            IFormatterLogger formatterLogger, CancellationToken cancellationToken)
+        {
+            return ReadFromStreamAsyncCore(type, readStream, content, formatterLogger, cancellationToken);
+        }
+
+        private Task<object> ReadFromStreamAsyncCore(Type type, Stream readStream, HttpContent content,
+            IFormatterLogger formatterLogger, CancellationToken? cancellationToken)
         {
             HttpContentHeaders contentHeaders = content == null ? null : content.Headers;
             MediaTypeHeaderValue contentType = contentHeaders == null ? null : contentHeaders.ContentType;
+
+            IFormatterLogger formatterLoggerTraceWrapper =
+                (formatterLogger == null) ? null : new FormatterLoggerTraceWrapper(formatterLogger,
+                                                                                   TraceWriter,
+                                                                                   Request,
+                                                                                   InnerFormatter.GetType().Name,
+                                                                                   ReadFromStreamAsyncMethodName);
 
             return TraceWriter.TraceBeginEndAsync<object>(
                 Request,
@@ -211,8 +232,17 @@ namespace System.Web.Http.Tracing.Tracers
                                         contentType == null ? SRResources.TraceNoneObjectMessage : contentType.ToString());
                 },
 
-                execute: () => InnerFormatter.ReadFromStreamAsync(type, readStream, content, formatterLogger),
-
+                execute: () =>
+                {
+                    if (cancellationToken.HasValue)
+                    {
+                        return InnerFormatter.ReadFromStreamAsync(type, readStream, content, formatterLoggerTraceWrapper, cancellationToken.Value);
+                    }
+                    else
+                    {
+                        return InnerFormatter.ReadFromStreamAsync(type, readStream, content, formatterLoggerTraceWrapper);
+                    }
+                },
                 endTrace: (tr, value) =>
                 {
                     tr.Message = Error.Format(
@@ -223,7 +253,20 @@ namespace System.Web.Http.Tracing.Tracers
                 errorTrace: null);
         }
 
-        public override Task WriteToStreamAsync(Type type, object value, Stream writeStream, HttpContent content, TransportContext transportContext)
+        public override Task WriteToStreamAsync(Type type, object value, Stream writeStream, HttpContent content,
+            TransportContext transportContext)
+        {
+            return WriteToStreamAsyncCore(type, value, writeStream, content, transportContext);
+        }
+
+        public override Task WriteToStreamAsync(Type type, object value, Stream writeStream, HttpContent content,
+            TransportContext transportContext, CancellationToken cancellationToken)
+        {
+            return WriteToStreamAsyncCore(type, value, writeStream, content, transportContext, cancellationToken);
+        }
+
+        private Task WriteToStreamAsyncCore(Type type, object value, Stream writeStream, HttpContent content,
+            TransportContext transportContext, CancellationToken? cancellationToken = null)
         {
             HttpContentHeaders contentHeaders = content == null ? null : content.Headers;
             MediaTypeHeaderValue contentType = contentHeaders == null
@@ -244,7 +287,17 @@ namespace System.Web.Http.Tracing.Tracers
                                         type.Name,
                                         contentType == null ? SRResources.TraceNoneObjectMessage : contentType.ToString());
                 },
-                execute: () => InnerFormatter.WriteToStreamAsync(type, value, writeStream, content, transportContext),
+                execute: () =>
+                {
+                    if (cancellationToken.HasValue)
+                    {
+                        return InnerFormatter.WriteToStreamAsync(type, value, writeStream, content, transportContext, cancellationToken.Value);
+                    }
+                    else
+                    {
+                        return InnerFormatter.WriteToStreamAsync(type, value, writeStream, content, transportContext);
+                    }
+                },
                 endTrace: null,
                 errorTrace: null);
         }

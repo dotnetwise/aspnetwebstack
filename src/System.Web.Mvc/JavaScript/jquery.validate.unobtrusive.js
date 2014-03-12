@@ -116,8 +116,8 @@
                 },
                 attachValidation: function () {
                     $form
-                        .unbind("reset." + data_validation, onResetProxy)
-                        .bind("reset." + data_validation, onResetProxy)
+                        .off("reset." + data_validation, onResetProxy)
+                        .on("reset." + data_validation, onResetProxy)
                         .validate(this.options);
                 },
                 validate: function () {  // a validation function that is called by unobtrusive Ajax
@@ -192,15 +192,17 @@
             /// attribute values.
             /// </summary>
             /// <param name="selector" type="String">Any valid jQuery selector.</param>
-            var $forms = $(selector)
-                .parents("form")
-                .andSelf()
-                .add($(selector).find("form"))
-                .filter("form");
 
-            // :input is a psuedoselector provided by jQuery which selects input and input-like elements
-            // combining :input with other selectors significantly decreases performance.
-            $(selector).find(":input").filter("[data-val=true]").each(function () {
+            // $forms includes all forms in selector's DOM hierarchy (parent, children and self) that have at least one
+            // element with data-val=true
+            var $selector = $(selector),
+                $forms = $selector.parents()
+                                  .addBack()
+                                  .filter("form")
+                                  .add($selector.find("form"))
+                                  .has("[data-val=true]");
+
+            $selector.find("[data-val=true]").each(function () {
                 $jQval.unobtrusive.parseElement(this, true);
             });
 
@@ -330,6 +332,7 @@
     adapters.addSingleVal("regex", "pattern");
     adapters.addBool("creditcard").addBool("date").addBool("digits").addBool("email").addBool("number").addBool("url");
     adapters.addMinMax("length", "minlength", "maxlength", "rangelength").addMinMax("range", "min", "max", "range");
+    adapters.addMinMax("minlength", "minlength").addMinMax("maxlength", "minlength", "maxlength");
     adapters.add("equalto", ["other"], function (options) {
         var prefix = getModelPrefix(options.element.name),
             other = options.params.other,
